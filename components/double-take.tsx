@@ -528,6 +528,24 @@ function RoomGame({
           </div>
         </>
       )}
+      {game.phase === "finished" && (
+        <div className="card card-soft">
+          <h2>Final scores</h2>
+          <div className="players">
+            {[...game.players]
+              .sort((a, b) => b.score - a.score || a.seatIndex - b.seatIndex)
+              .map((player) => (
+                <div key={player.playerId} className="row">
+                  <span>
+                    {player.name}
+                    {player.seatIndex === 0 ? " · host" : ""}
+                  </span>
+                  <span className="points">{formatPoints(player.score)}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
       {game.phase !== "writing" && game.reveal && (
         <div className="card">
           <h2>The reveal</h2>
@@ -615,24 +633,6 @@ function RoomGame({
                 {busy ? "Dealing…" : "Play again (host)"}
               </button>
             )}
-          </div>
-        </div>
-      )}
-      {game.phase === "finished" && (
-        <div className="card card-soft">
-          <h2>Final scores</h2>
-          <div className="players">
-            {[...game.players]
-              .sort((a, b) => b.score - a.score || a.seatIndex - b.seatIndex)
-              .map((player) => (
-                <div key={player.playerId} className="row">
-                  <span>
-                    {player.name}
-                    {player.seatIndex === 0 ? " · host" : ""}
-                  </span>
-                  <span className="points">{formatPoints(player.score)}</span>
-                </div>
-              ))}
           </div>
         </div>
       )}
