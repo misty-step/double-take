@@ -11,7 +11,7 @@
  * adjudications record the version that produced them.
  */
 
-export const RUBRIC_VERSION = "double-take-rubric@1";
+export const RUBRIC_VERSION = "double-take-rubric@2";
 
 export const PLAUSIBILITY_LEVELS = [
   "Impossible or contradictory here — the words fight this context",
@@ -63,7 +63,7 @@ export function buildQuestions(pair: Pair): Record<string, JudgeQuestion> {
         question:
           "Read `sentence` as if the only context that existed were `context_a`. How plausible is it as something said or written in that context?",
         guidance:
-          "Judge this reading alone. Do not reward the sentence for also fitting `context_b`. A reader who knows only context A must find the line natural.",
+          "Judge this reading alone. Do not reward the sentence for also fitting `context_b`. A reader who knows only context A must find the line natural. Impossible is a strong verdict: use it only when the words fight this context under every reasonable delivery. If a natural delivery — sincere, menacing, or sardonic — could say the line here, the reading is at least Strained.",
       },
       criteria: PLAUSIBILITY_LEVELS,
     },
@@ -73,7 +73,7 @@ export function buildQuestions(pair: Pair): Record<string, JudgeQuestion> {
         question:
           "Read `sentence` as if the only context that existed were `context_b`. How plausible is it as something said or written in that context?",
         guidance:
-          "Judge this reading alone. Do not reward the sentence for also fitting `context_a`. A reader who knows only context B must find the line natural.",
+          "Judge this reading alone. Do not reward the sentence for also fitting `context_a`. A reader who knows only context B must find the line natural. Impossible is a strong verdict: use it only when the words fight this context under every reasonable delivery. If a natural delivery — sincere, menacing, or sardonic — could say the line here, the reading is at least Strained.",
       },
       criteria: PLAUSIBILITY_LEVELS,
     },
@@ -83,7 +83,7 @@ export function buildQuestions(pair: Pair): Record<string, JudgeQuestion> {
         question:
           "Is `sentence` one coherent sentence, or two independent clauses stitched together so that each half serves a different context?",
         guidance:
-          "Stitched: the two halves would not be said together by anyone, and each half only works in one context. A comma or conjunction does not make two sentences one.",
+          "Stitched: the two halves would not be said together by anyone, and each half works in only one context — a different context for each half. A comma or conjunction does not make two sentences one. Clauses that both work in the same context are one sentence, not stitching.",
       },
       criteria: COHERENCE_LEVELS,
     },

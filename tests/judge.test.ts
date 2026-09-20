@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { PAIRS, pairByKey } from "../convex/content";
+import { CALIBRATION, PAIRS, pairByKey } from "../convex/content";
 import { JudgeUnavailableError, readJudgeConfig, runAdjudication } from "../convex/judge";
+import { checkSentence, normalizeSentence } from "../convex/rules";
 
 const pair = pairByKey("vow-villain")!;
 
@@ -63,7 +64,7 @@ describe("runAdjudication", () => {
     const draft = await runAdjudication(config, pair, "I will love you until death takes me", fetchMock);
     expect(draft.levels).toEqual({ plausibilityA: 3, plausibilityB: 3, coherence: 3, specificity: 2 });
     expect(draft.composed).toMatchObject({ weaker: 3, points: 6, gate: "ok" });
-    expect(draft.rubricVersion).toBe("double-take-rubric@1");
+    expect(draft.rubricVersion).toBe("double-take-rubric@2");
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(body.model).toBe("typesafe/jev-1.13");
     expect(body.state.sentence).toBe("I will love you until death takes me");
@@ -132,6 +133,38 @@ describe("deck integrity", () => {
       expect(item.contextB.label.length).toBeGreaterThan(2);
       expect(item.contextA.setting.length).toBeGreaterThan(10);
       expect(item.contextB.setting.length).toBeGreaterThan(10);
+    }
+  });
+});
+
+describe("calibration deck integrity", () => {
+  it("is non-empty, references real pairs, and stays inside level range", () => {
+    expect(CALIBRATION.length).toBeGreaterThan(0);
+    const keys = new Set(PAIRS.map((p) => p.key));
+    for (const example of CALIBRATION) {
+      expect(keys.has(example.pairKey)).toBe(true);
+      for (const level of Object.values(example.expected)) {
+        expect(Number.isInteger(level)).toBe(true);
+        expect(level).toBeGreaterThanOrEqual(0);
+        expect(level).toBeLessThanOrEqual(3);
+      }
+      expect(example.note.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("uses every calibration sentence exactly once, normalized", () => {
+    const seen = new Set(CALIBRATION.map((example) => normalizeSentence(example.sentence)));
+    expect(seen.size).toBe(CALIBRATION.length);
+  });
+
+  it("keeps every calibration sentence playable under the player gate", () => {
+    // A deck entry over the word cap is judge-side only: no player can ever
+    // submit it through the UI. This test keeps the whole deck player-reachable
+    // (the 13-word letter-fineprint original failed exactly here).
+    for (const example of CALIBRATION) {
+      const check = checkSentence(example.sentence);
+      expect({ sentence: example.sentence, ok: check.ok, code: check.ok ? null : check.code })
+        .toEqual({ sentence: example.sentence, ok: true, code: null });
     }
   });
 });
