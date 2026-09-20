@@ -77,3 +77,40 @@ persisted independent browser clients (fresh prod-issued guest cookies):
 - Host transfer under disconnect: the heartbeat self-healing path is now
   exercised (Round 3 above); the disconnect-mid-session variant still belongs
   to the platform matrix on t_b2f5248d.
+
+## Round 5–7 journeys (2026-09-20, QA round-2 rework, production build)
+
+- Match-end standings: the platform completes the match in the same mutation
+  that finishes the game (`advance` → `completeMatch`), so `activeMatch` goes
+  null exactly when the standings should appear. The strict `findActiveMatch`
+  is correct platform behavior; the game now returns the latest game's phase
+  from `forRoom` and lingers on its own finished game (predicate in
+  `lib/room-view.ts`). Verified live: finish → Final scores first card →
+  Play again (host) reachable → cycle 2 starts and seats a member who joined
+  during the standings (room 5GVZ, room WEB7).
+- Late joiners during an active match: a room member who joined while a match
+  ran hit a permanent `MATCH_PARTICIPANT_REQUIRED` failure on `game.view` and
+  dead-ended on "Dealing you in…". Reproduced live on the QA VM, that
+  sustained failing subscription coincided with the client renderer dying
+  within seconds — five fresh identities (Hopper, Marza, Vera, Tess, Iris)
+  across fresh browser instances, no JS exception, calm HTTP (11 requests),
+  no server error, no host memory pressure. The game now serves such members
+  a spectator projection (`me.seated: false`, no writer, advance gated, no
+  text before the reveal, outsiders still refused). After the fix the same
+  room state that killed every joiner held a new client stable for 36 s+
+  (round7-spectator-joiner-stable.png). Root cause of the renderer death is
+  on the client stack (Chromium/convex-react under a permanently failing
+  subscription); the game-side fix removes the failing state entirely, and
+  the mid-match-joiner dead-end is gone as a product bug regardless. If the
+  renderer-level mechanism matters, it belongs with the platform owner as a
+  convex-react consumer finding, not with this game.
+- One crash remained unexplained: the original host tab died once during the
+  round-1 writing→reveal transition (room 8PVD) with the same interstitial.
+  It never reproduced on any other client through the same transition, and
+  every subsequently observed death traced to the non-participant path above.
+  Recorded here for honesty; not observed again after the spectator fix.
+
+## Backend candidate deployments (this card's isolated project)
+
+- `proper-albatross-726` redeployed at heads `109d1cf`, `9708296` (functions
+  only; the public frontend stays unshipped until independent approval).
