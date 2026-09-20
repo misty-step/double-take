@@ -22,7 +22,7 @@ try {
   await runInternal(processes, local, "seed:run");
   const web = await startWeb(processes, local);
   console.log(
-    `Starting Poppycock at ${WEB_URL}; Convex uses ports 3220/3221. Ctrl+C stops both servers and preserves local game data.`,
+    `Starting Double Take at ${WEB_URL}; Convex uses ports 3220/3221. Ctrl+C stops both servers and preserves local game data.`,
   );
   const result = await Promise.race([
     backend.job.done.then((exit) => ({ ...exit, label: "Convex" })),
