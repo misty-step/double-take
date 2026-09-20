@@ -4,5 +4,5 @@
   "paths": ["packages", "integrations", "tsconfig.base.json", "LICENSE"],
   "modifications": [],
   "vendored": "2026-09-20",
-  "note": "Trimmed copy of the misty-step/parlor library paths at the recorded commit. Private workspace packages; not an npm dependency. The skill guidance for this pin is imported under .agents/skills/parlor."
+  "note": "Trimmed copy of the misty-step/parlor library paths at the recorded commit. Private workspace packages; not an npm dependency. Skill guidance for this pin stays upstream at skills/parlor/SKILL.md on the recorded commit (skills/ is not part of the vendored paths)."
 }
