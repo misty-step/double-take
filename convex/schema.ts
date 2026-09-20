@@ -2,7 +2,11 @@ import { parlorTables } from "@parlor/convex/schema";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-const gamePhase = v.union(v.literal("writing"), v.literal("reveal"), v.literal("finished"));
+export const gamePhase = v.union(
+  v.literal("writing"),
+  v.literal("reveal"),
+  v.literal("finished"),
+);
 const submissionStatus = v.union(v.literal("pending"), v.literal("judged"), v.literal("failed"));
 
 export default defineSchema({

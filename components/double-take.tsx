@@ -7,6 +7,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { INSTRUCTIONS, PAIRS, pairByKey } from "../convex/content";
 import { MAX_SUBMISSIONS_PER_ROUND, MAX_WORDS, wordCount } from "../convex/rules";
+import { showsGameTable } from "../lib/room-view";
 import { useGuest, resetIssuer } from "../app/providers";
 
 type RoomId = Id<"rooms">;
@@ -594,13 +595,24 @@ function RoomGame({
             {game.phase === "finished" && (
               <button
                 className="button primary"
-                disabled={!game.host}
+                disabled={!game.host || busy}
                 onClick={async () => {
-                  requestRef.current = crypto.randomUUID();
-                  await start({ roomId, requestId: requestRef.current, guestToken: token });
+                  setBusy(true);
+                  try {
+                    requestRef.current = crypto.randomUUID();
+                    await start({ roomId, requestId: requestRef.current, guestToken: token });
+                  } catch (error) {
+                    setNotice({
+                      code: "START_FAILED",
+                      message:
+                        error instanceof Error ? error.message : "The table did not start.",
+                    });
+                  } finally {
+                    setBusy(false);
+                  }
                 }}
               >
-                Play again (host)
+                {busy ? "Dealing…" : "Play again (host)"}
               </button>
             )}
           </div>
@@ -611,11 +623,14 @@ function RoomGame({
           <h2>Final scores</h2>
           <div className="players">
             {[...game.players]
-              .sort((a, b) => b.score - a.score)
+              .sort((a, b) => b.score - a.score || a.seatIndex - b.seatIndex)
               .map((player) => (
                 <div key={player.playerId} className="row">
-                  <span>{player.name}</span>
-                  <span className="points">{player.score}</span>
+                  <span>
+                    {player.name}
+                    {player.seatIndex === 0 ? " · host" : ""}
+                  </span>
+                  <span className="points">{formatPoints(player.score)}</span>
                 </div>
               ))}
           </div>
@@ -627,7 +642,7 @@ function RoomGame({
 
 function Room({ roomId, token, onExit }: { roomId: RoomId; token: string; onExit: () => void }) {
   const state = useQuery(api.rooms.getRoomState, { roomId, guestToken: token });
-  const gameId = useQuery(api.game.forRoom, { roomId, guestToken: token });
+  const brief = useQuery(api.game.forRoom, { roomId, guestToken: token });
   const start = useMutation(api.game.start);
   const heartbeatMutation = useMutation(api.rooms.heartbeat);
   const [busy, setBusy] = useState(false);
@@ -645,6 +660,7 @@ function Room({ roomId, token, onExit }: { roomId: RoomId; token: string; onExit
 
   const isHost = state.room.hostPlayerId === state.viewerPlayerId;
   const active = state.activeMatch;
+  const gameId = brief?.gameId ?? null;
 
   return (
     <div>
@@ -671,8 +687,8 @@ function Room({ roomId, token, onExit }: { roomId: RoomId; token: string; onExit
         </p>
       </div>
       {notice && <div className="error">{notice}</div>}
-      {active && gameId ? (
-        <RoomGame roomId={roomId} gameId={gameId} token={token} onExit={onExit} />
+      {gameId !== null && showsGameTable(active !== null, brief?.phase ?? null) ? (
+        <RoomGame key={gameId} roomId={roomId} gameId={gameId} token={token} onExit={onExit} />
       ) : (
         <div className="card">
           <h2>Ready when you are</h2>

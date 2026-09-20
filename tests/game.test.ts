@@ -359,4 +359,74 @@ describe("double take game", () => {
     const rows = await t.run(async (ctx) => ctx.db.query("rateLimits").collect());
     expect(rows[0]?.count ?? 0).toBe(1);
   });
+
+  it("keeps the final standings reachable after the match completes", async () => {
+    const { clients, host, room, gameId } = await fixture();
+    await playOutMatch({ clients, host, gameId });
+    // The platform completes the match in the same mutation that finishes the
+    // game; activeMatch is gone, but the room must not drop to the lobby.
+    const state = await host.query(api.rooms.getRoomState, { roomId: room.roomId });
+    expect(state.activeMatch).toBeNull();
+    const brief = await host.query(api.game.forRoom, { roomId: room.roomId });
+    expect(brief).toMatchObject({ gameId, phase: "finished" });
+    const view = await host.query(api.game.view, { gameId });
+    expect(view.phase).toBe("finished");
+    expect(view.players).toHaveLength(2);
+    expect(view.players.every((player) => player.score >= 0)).toBe(true);
+    expect(view.reveal?.submissions).toHaveLength(2);
+  });
+
+  it("lets a member who missed the match read the finished standings", async () => {
+    const { t, clients, host, room, gameId } = await fixture();
+    await playOutMatch({ clients, host, gameId });
+    const late = t.withIdentity({ subject: "late-joiner", issuer: "double-take-test" });
+    const joined = await late.mutation(api.rooms.joinRoom, {
+      code: room.code,
+      displayName: "Late",
+    });
+    expect(joined.ok).toBe(true);
+    const view = await late.query(api.game.view, { gameId });
+    expect(view.phase).toBe("finished");
+    expect(view.players).toHaveLength(2);
+    expect(view.me.submission).toBeNull();
+    const outsider = t.withIdentity({ subject: "standings-outsider", issuer: "double-take-test" });
+    await expect(outsider.query(api.game.view, { gameId })).rejects.toThrow();
+  });
+
+  it("still hides an unfinished match from members who are not seated", async () => {
+    const { t, room, gameId } = await fixture();
+    const late = t.withIdentity({ subject: "mid-joiner", issuer: "double-take-test" });
+    const joined = await late.mutation(api.rooms.joinRoom, {
+      code: room.code,
+      displayName: "Mid",
+    });
+    expect(joined.ok).toBe(true);
+    await expect(late.query(api.game.view, { gameId })).rejects.toThrow();
+  });
 });
+
+/** Play all three rounds so the match finishes and the platform completes it. */
+async function playOutMatch({
+  clients,
+  host,
+  gameId,
+}: {
+  clients: Awaited<ReturnType<typeof fixture>>["clients"];
+  host: Awaited<ReturnType<typeof fixture>>["host"];
+  gameId: Awaited<ReturnType<typeof fixture>>["gameId"];
+}) {
+  for (let round = 1; round <= 3; round += 1) {
+    await clients[0]!.mutation(api.game.submit, {
+      gameId,
+      text: `Round ${round} words that hold twice`,
+    });
+    await clients[1]!.mutation(api.game.submit, {
+      gameId,
+      text: `Round ${round} another line for both`,
+    });
+    await host.action(api.game.judge, { gameId });
+    await host.mutation(api.game.beginReveal, { gameId });
+    const advanced = await host.mutation(api.game.advance, { gameId });
+    expect(advanced).toMatchObject({ ok: true, finished: round === 3 });
+  }
+}

@@ -15,6 +15,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { PAIRS, pairByKey } from "./content";
+import { gamePhase } from "./schema";
 import { JudgeUnavailableError, readJudgeConfig, runAdjudication } from "./judge";
 import { chargeRateLimit } from "./limits";
 import {
@@ -556,9 +557,20 @@ export const advance = mutation({
   },
 });
 
-/** Latest game for a room, for room-scoped clients. Members only. */
+/**
+ * Latest game for a room, for room-scoped clients. Members only.
+ *
+ * The platform completes the match in the same mutation that finishes the
+ * game, so a finished game outlives `activeMatch`. Returning the phase lets
+ * the room keep the standings on screen instead of dropping straight to the
+ * lobby when the final round closes.
+ */
 export const forRoom = query({
   args: { roomId: v.id("rooms"), guestToken: v.optional(v.string()) },
+  returns: v.object({
+    gameId: v.union(v.id("games"), v.null()),
+    phase: v.union(gamePhase, v.null()),
+  }),
   handler: async (ctx, args) => {
     const actor = await resolvePlayer(ctx, args.guestToken);
     const member = await ctx.db
@@ -573,7 +585,8 @@ export const forRoom = query({
       .withIndex("by_room_cycle", (q) => q.eq("roomId", args.roomId))
       .order("desc")
       .take(1);
-    return games[0]?._id ?? null;
+    const latest = games[0] ?? null;
+    return { gameId: latest ? latest._id : null, phase: latest ? latest.phase : null };
   },
 });
 
@@ -581,7 +594,30 @@ export const forRoom = query({
 export const view = query({
   args: { gameId: v.id("games"), guestToken: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const { game, actor } = await gameAccess(ctx, args.gameId, args.guestToken);
+    const game = await ctx.db.get(args.gameId);
+    if (!game) fail("GAME_NOT_FOUND", "That table is gone.");
+    const actor = await resolvePlayer(ctx, args.guestToken);
+    const participant = await ctx.db
+      .query("matchParticipants")
+      .withIndex("by_match_player", (q) =>
+        q.eq("matchId", game.matchId).eq("playerId", actor.playerId),
+      )
+      .unique();
+    if (!participant) {
+      if (game.phase !== "finished")
+        fail("MATCH_PARTICIPANT_REQUIRED", "You are not seated at this table.");
+      // The match is over and its reveal is already public at the table, so
+      // any seated member may read the standings — a player joining between
+      // matches must not hit a dead end. Outsiders and leavers still may not.
+      const member = await ctx.db
+        .query("roomMembers")
+        .withIndex("by_room_player", (q) =>
+          q.eq("roomId", game.roomId).eq("playerId", actor.playerId),
+        )
+        .unique();
+      if (!member || member.closedAt !== undefined)
+        fail("NOT_A_ROOM_MEMBER", "Join the table first.");
+    }
     const round = await roundRow(ctx, game);
     const pair = pairByKey(game.pairKey);
     if (!pair) fail("GAME_DATA_INVALID", "This round references an unknown pair.");
