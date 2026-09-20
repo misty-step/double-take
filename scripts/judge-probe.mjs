@@ -16,8 +16,8 @@
  * variance on low-confidence sides. Deck expectations are authored intent, not
  * verified outputs; DIVERGE lines are diagnostic signal, not failures.
  *
- * Requires Node 23.6+ for native TypeScript stripping (the probe imports
- * convex modules directly); on Node 22 pass --experimental-strip-types.
+ * Requires Node 22.12+ with --experimental-strip-types (the package script
+ * judge:probe passes it; Node 23.6+ strips types without any flag).
  */
 
 import { CALIBRATION, pairByKey } from "../convex/content.ts";
@@ -100,6 +100,14 @@ for (const [index, example] of CALIBRATION.entries()) {
         levels.coherence === null || levels.specificity === null
           ? null
           : composeResult(levels);
+      if (composed === null) {
+        console.log(
+          `#${index + 1} ${example.pairKey} "${example.sentence}" [${repeat}/${repeats}]: ` +
+          `HTTP 200 — unscorable answers, excluded from the summary`,
+        );
+        live.push(null);
+        continue;
+      }
       const confidences = {
         a: confidenceOf(answers.plausibility_a),
         b: confidenceOf(answers.plausibility_b),
@@ -110,9 +118,7 @@ for (const [index, example] of CALIBRATION.entries()) {
         `#${index + 1} ${example.pairKey} "${example.sentence}" [${repeat}/${repeats}]: ` +
         `HTTP 200 (${ms}ms) model=${parsed.model} rubric=${RUBRIC_VERSION} ` +
         `levels=A${levels.plausibilityA}/B${levels.plausibilityB}/coh${levels.coherence}/spec${levels.specificity} ` +
-        (composed
-          ? `-> ${composed.points} pts (${composed.gate})`
-          : `-> unscorable`) +
+        `-> ${composed.points} pts (${composed.gate})` +
         ` conf=[a:${confidences.a} b:${confidences.b} coh:${confidences.coherence} spec:${confidences.specificity}]`,
       );
       live.push({ levels, composed, confidences, model: parsed.model });

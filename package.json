@@ -13,7 +13,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:parlor": "vitest run --config scripts/vitest.vendor.mjs",
-    "judge:probe": "node scripts/judge-probe.mjs",
+    "judge:probe": "node --experimental-strip-types scripts/judge-probe.mjs",
     "check": "pnpm build:parlor && pnpm typecheck && pnpm test"
   },
   "dependencies": {
