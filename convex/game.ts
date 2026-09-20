@@ -603,12 +603,11 @@ export const view = query({
         q.eq("matchId", game.matchId).eq("playerId", actor.playerId),
       )
       .unique();
-    if (!participant) {
-      if (game.phase !== "finished")
-        fail("MATCH_PARTICIPANT_REQUIRED", "You are not seated at this table.");
-      // The match is over and its reveal is already public at the table, so
-      // any seated member may read the standings — a player joining between
-      // matches must not hit a dead end. Outsiders and leavers still may not.
+    const seated = participant !== null;
+    if (!seated) {
+      // Members who joined while a match runs watch it as spectators instead of
+      // dead-ending on a failing query; they are dealt in when the next match
+      // starts. Outsiders and leavers still may not read anything.
       const member = await ctx.db
         .query("roomMembers")
         .withIndex("by_room_player", (q) =>
@@ -687,6 +686,7 @@ export const view = query({
       players,
       me: {
         playerId: actor.playerId,
+        seated,
         submission: mine
           ? {
               text: mine.text,

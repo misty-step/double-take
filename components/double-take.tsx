@@ -453,32 +453,41 @@ function RoomGame({
       {game.phase === "writing" && (
         <>
           <PairCards pair={pair} />
-          <Writer
-            key={mine?.revision ?? 0}
-            pairKey={pair.key}
-            busy={busy}
-            disabled={timeUp || revisionsLeft === 0}
-            initialText={mine?.text ?? ""}
-            submitLabel={mine ? "Revise the line" : "Submit the line"}
-            hint={
-              timeUp
-                ? "The writing window closed. The reveal comes next."
-                : mine
-                  ? revisionsLeft > 0
-                    ? `Submitted: “${mine.text}”. You can revise below while the round is open — ${revisionsLeft} ${revisionsLeft === 1 ? "change" : "changes"} left.`
-                    : `Submitted: “${mine.text}”. That was the last change for this round.`
-                  : `About ${secondsLeft}s left in this round.`
-            }
-            onSubmit={async (text) => {
-              setBusy(true);
-              try {
-                const response = await submit({ gameId, text, guestToken: token });
-                return response;
-              } finally {
-                setBusy(false);
+          {game.me.seated ? (
+            <Writer
+              key={mine?.revision ?? 0}
+              pairKey={pair.key}
+              busy={busy}
+              disabled={timeUp || revisionsLeft === 0}
+              initialText={mine?.text ?? ""}
+              submitLabel={mine ? "Revise the line" : "Submit the line"}
+              hint={
+                timeUp
+                  ? "The writing window closed. The reveal comes next."
+                  : mine
+                    ? revisionsLeft > 0
+                      ? `Submitted: “${mine.text}”. You can revise below while the round is open — ${revisionsLeft} ${revisionsLeft === 1 ? "change" : "changes"} left.`
+                      : `Submitted: “${mine.text}”. That was the last change for this round.`
+                    : `About ${secondsLeft}s left in this round.`
               }
-            }}
-          />
+              onSubmit={async (text) => {
+                setBusy(true);
+                try {
+                  const response = await submit({ gameId, text, guestToken: token });
+                  return response;
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+          ) : (
+            <div className="card">
+              <p className="small muted">
+                You joined while this match was running. Watch the round — you are dealt in
+                when the next match starts.
+              </p>
+            </div>
+          )}
           <div className="card card-soft">
             <div className="players">
               {game.players.map((player) => (
@@ -600,7 +609,7 @@ function RoomGame({
             {game.phase === "reveal" && (
               <button
                 className="button primary"
-                disabled={!game.host && !allJudged}
+                disabled={(!game.host && !allJudged) || !game.me.seated}
                 onClick={async () => {
                   const response = await advance({ gameId, guestToken: token });
                   if (!response.ok)

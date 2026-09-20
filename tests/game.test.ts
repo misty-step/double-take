@@ -393,15 +393,40 @@ describe("double take game", () => {
     await expect(outsider.query(api.game.view, { gameId })).rejects.toThrow();
   });
 
-  it("still hides an unfinished match from members who are not seated", async () => {
-    const { t, room, gameId } = await fixture();
+  it("seats a mid-match joiner as a spectator without exposing hidden text", async () => {
+    const { t, clients, host, room, gameId } = await fixture();
+    await clients[0]!.mutation(api.game.submit, {
+      gameId,
+      text: "A line that works in both worlds",
+    });
     const late = t.withIdentity({ subject: "mid-joiner", issuer: "double-take-test" });
     const joined = await late.mutation(api.rooms.joinRoom, {
       code: room.code,
       displayName: "Mid",
     });
     expect(joined.ok).toBe(true);
-    await expect(late.query(api.game.view, { gameId })).rejects.toThrow();
+    const view = await late.query(api.game.view, { gameId });
+    expect(view.phase).toBe("writing");
+    expect(view.me.seated).toBe(false);
+    expect(view.me.submission).toBeNull();
+    expect(view.reveal).toBeNull();
+    expect(JSON.stringify(view)).not.toContain("both worlds");
+    // A spectator cannot spend or advance in a match they are not dealt into.
+    await expect(
+      late.mutation(api.game.submit, { gameId, text: "Spectator line for the round" }),
+    ).rejects.toThrow();
+    await expect(late.mutation(api.game.advance, { gameId })).rejects.toThrow();
+    // Outsiders without a seat at the table still learn nothing.
+    const outsider = t.withIdentity({ subject: "mid-outsider", issuer: "double-take-test" });
+    await expect(outsider.query(api.game.view, { gameId })).rejects.toThrow();
+    // The round still flows for the seated players.
+    await clients[1]!.mutation(api.game.submit, { gameId, text: "Another line for two contexts" });
+    await host.action(api.game.judge, { gameId });
+    const reveal = await host.mutation(api.game.beginReveal, { gameId });
+    expect(reveal.ok).toBe(true);
+    const spectate = await late.query(api.game.view, { gameId });
+    expect(spectate.phase).toBe("reveal");
+    expect(spectate.reveal?.submissions).toHaveLength(2);
   });
 });
 
