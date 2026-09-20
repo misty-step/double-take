@@ -1,0 +1,38 @@
+$ pnpm build:parlor && next build
+$ pnpm --filter './vendor/parlor/**' -r build
+Scope: 5 of 6 workspace projects
+vendor/parlor/packages/auth build$ tsc -p tsconfig.json
+vendor/parlor/packages/core build$ tsc -p tsconfig.json
+vendor/parlor/packages/web build$ tsc -p tsconfig.json
+vendor/parlor/packages/web build: Done
+vendor/parlor/packages/react build$ tsc -p tsconfig.json
+vendor/parlor/packages/core build: Done
+vendor/parlor/packages/auth build: Done
+vendor/parlor/integrations/convex build$ tsc -p tsconfig.json
+vendor/parlor/packages/react build: Done
+vendor/parlor/integrations/convex build: Done
+▲ Next.js 16.3.4 (Turbopack)
+- Environments: .env.local
+✓ Running next.config took 4ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.0s
+  Running TypeScript ...
+  Finished TypeScript in 261ms ...
+  Collecting page data using 5 workers ...
+  Generating static pages using 5 workers (0/3) ...
+(node:1959641) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✓ Generating static pages using 5 workers (3/3) in 182ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+└ ƒ /api/guest
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+BUILD_EXIT=0

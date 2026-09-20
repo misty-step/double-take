@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/misty-step/parlor",
+  "commit": "df1a0be174c3f131d4ff15df1e3d27d487e34313",
+  "paths": ["packages", "integrations", "tsconfig.base.json", "LICENSE"],
+  "modifications": [],
+  "vendored": "2026-09-20",
+  "note": "Trimmed copy of the misty-step/parlor library paths at the recorded commit. Private workspace packages; not an npm dependency. Skill guidance for this pin stays upstream at skills/parlor/SKILL.md on the recorded commit (skills/ is not part of the vendored paths)."
+}

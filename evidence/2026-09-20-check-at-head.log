@@ -1,0 +1,27 @@
+$ pnpm build:parlor && pnpm typecheck && pnpm test
+$ pnpm --filter './vendor/parlor/**' -r build
+Scope: 5 of 6 workspace projects
+vendor/parlor/packages/auth build$ tsc -p tsconfig.json
+vendor/parlor/packages/core build$ tsc -p tsconfig.json
+vendor/parlor/packages/web build$ tsc -p tsconfig.json
+vendor/parlor/packages/web build: Done
+vendor/parlor/packages/react build$ tsc -p tsconfig.json
+vendor/parlor/packages/core build: Done
+vendor/parlor/packages/auth build: Done
+vendor/parlor/integrations/convex build$ tsc -p tsconfig.json
+vendor/parlor/packages/react build: Done
+vendor/parlor/integrations/convex build: Done
+$ next typegen && tsc --noEmit
+Generating route types...
+✓ Types generated successfully
+$ vitest run
+
+ RUN  v5.0.0 /home/phaedrus/.hermes/kanban/workspaces/t_2f3bbf3d
+
+
+ Test Files  3 passed (3)
+      Tests  26 passed (26)
+   Start at  12:59:32
+   Duration  2.94s (tests 96%, transform 3%, import 1%)
+
+CHECK_EXIT=0

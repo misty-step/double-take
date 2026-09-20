@@ -1,0 +1,44 @@
+(node:1936006) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▌ Deploying code to deployment:
+▌ [Production] misty-step:doubletake:production (prod) (dashboard: https://dashboard.convex.dev/t/misty-step/doubletake/proper-albatross-726)
+▌ └─ https://proper-albatross-726.convex.cloud
+- Deploying to https://proper-albatross-726.convex.cloud...
+
+[36mA minor update is available for Convex[39m [2m(1.45.0 → 1.46.0)[22m
+[2mChangelog:[22m [4mhttps://github.com/get-convex/convex-js/blob/main/CHANGELOG.md#changelog[24m
+Convex AI files are not installed. Run npx convex ai-files install to get started or npx convex ai-files disable to hide this message.
+✔ No indexes are deleted by this push
+Uploading functions to Convex...
+Generating TypeScript bindings...
+Running TypeScript...
+Pushing code to your Convex deployment...
+Schema validation complete.
+Finalizing push...
+✔ Added table indexes:
+  [+] adjudications.by_pair_normalized   pairKey, normalized, rubricVersion, _creationTime
+  [+] games.by_match   matchId, _creationTime
+  [+] games.by_room_cycle   roomId, cycle, _creationTime
+  [+] games.by_room_request   roomId, requestId, _creationTime
+  [+] matchParticipants.by_match   matchId, _creationTime
+  [+] matchParticipants.by_match_player   matchId, playerId, _creationTime
+  [+] matchParticipants.by_match_seat   matchId, seatIndex, _creationTime
+  [+] matchParticipants.by_player   playerId, _creationTime
+  [+] matches.by_room_cycle   roomId, cycle, _creationTime
+  [+] matches.by_room_status   roomId, status, _creationTime
+  [+] matches.by_status_started_at   status, startedAt, _creationTime
+  [+] players.by_identity   identityKey, _creationTime
+  [+] players.by_kind   kind, _creationTime
+  [+] rateLimits.by_player   playerId, _creationTime
+  [+] roomMembers.by_player   playerId, _creationTime
+  [+] roomMembers.by_player_open   playerId, closedAt, _creationTime
+  [+] roomMembers.by_room   roomId, _creationTime
+  [+] roomMembers.by_room_player   roomId, playerId, _creationTime
+  [+] roomMembers.by_room_seat   roomId, seatIndex, _creationTime
+  [+] rooms.by_code_open   code, closedAt, _creationTime
+  [+] rooms.by_host_open   hostPlayerId, closedAt, _creationTime
+  [+] rounds.by_game_round   gameId, round, _creationTime
+  [+] submissions.by_game_round   gameId, round, _creationTime
+  [+] submissions.by_game_round_player   gameId, round, playerId, _creationTime
+✔ Deployed Convex functions to https://proper-albatross-726.convex.cloud
+DEPLOY_EXIT=0

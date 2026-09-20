@@ -15,8 +15,8 @@ const ENV_FILE = join(ROOT, ".env.local");
 const LOCAL_DIR = join(ROOT, ".convex");
 const STATE_DIR = join(LOCAL_DIR, "local", "default");
 const CONFIG_FILE = join(STATE_DIR, "config.json");
-const CONTROL_FILE = join(LOCAL_DIR, "poppycock-control.env");
-const SETTINGS_FILE = join(LOCAL_DIR, "poppycock-settings.env");
+const CONTROL_FILE = join(LOCAL_DIR, "doubletake-control.env");
+const SETTINGS_FILE = join(LOCAL_DIR, "doubletake-settings.env");
 const CLI = join(ROOT, "node_modules", "convex", "bin", "main.js");
 const REMOTE_SELECTORS = [
   "CONVEX_DEPLOY_KEY",
@@ -41,7 +41,7 @@ function assertLocalSelectors(values, source) {
   for (const name of REMOTE_SELECTORS) {
     if (values[name]) {
       throw new Error(
-        `${source} contains ${name}. Unset it before using Poppycock's anonymous-local commands; they never select cloud or self-hosted resources.`,
+        `${source} contains ${name}. Unset it before using Double Take's anonymous-local commands; they never select cloud or self-hosted resources.`,
       );
     }
   }
@@ -53,8 +53,8 @@ function assertLocalSelectors(values, source) {
       `${source} selects a non-anonymous deployment. Use an isolated checkout for local play; this command will not change that deployment.`,
     );
   }
-  if (values.POPPYCOCK_LOCAL && values.POPPYCOCK_LOCAL !== "true") {
-    throw new Error(`${source} must set POPPYCOCK_LOCAL=true for anonymous local play.`);
+  if (values.DOUBLETAKE_LOCAL && values.DOUBLETAKE_LOCAL !== "true") {
+    throw new Error(`${source} must set DOUBLETAKE_LOCAL=true for anonymous local play.`);
   }
 }
 
@@ -130,19 +130,19 @@ function validateSigningConfiguration(values) {
       "PARLOR_GUEST_TOKEN_KEYS must identify an activeKeyId when it contains multiple keys.",
     );
   }
-  const continuity = readSecret(values.POPPYCOCK_CONTINUITY_SECRET, "POPPYCOCK_CONTINUITY_SECRET");
+  const continuity = readSecret(values.DOUBLETAKE_CONTINUITY_SECRET, "DOUBLETAKE_CONTINUITY_SECRET");
   for (const [key, value] of entries) {
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(key))
       throw new Error("Guest signing key identifiers must be 1–64 URL-safe characters.");
     const access = readSecret(value, "PARLOR_GUEST_TOKEN_KEYS signing key");
     if (access.length === continuity.length && timingSafeEqual(access, continuity)) {
       throw new Error(
-        "POPPYCOCK_CONTINUITY_SECRET must be different from every access-token signing key.",
+        "DOUBLETAKE_CONTINUITY_SECRET must be different from every access-token signing key.",
       );
     }
   }
-  if (values.PARLOR_GUEST_TOKEN_AUDIENCE !== "poppycock") {
-    throw new Error("PARLOR_GUEST_TOKEN_AUDIENCE must be poppycock.");
+  if (values.PARLOR_GUEST_TOKEN_AUDIENCE !== "doubletake") {
+    throw new Error("PARLOR_GUEST_TOKEN_AUDIENCE must be doubletake.");
   }
 }
 
@@ -168,8 +168,8 @@ export async function prepareLocalEnvironment({ create = false } = {}) {
     CONVEX_AGENT_MODE: "anonymous",
     NEXT_PUBLIC_CONVEX_URL: BACKEND_URL,
     NEXT_PUBLIC_CONVEX_SITE_URL: SITE_URL,
-    POPPYCOCK_LOCAL: "true",
-    PARLOR_GUEST_TOKEN_AUDIENCE: "poppycock",
+    DOUBLETAKE_LOCAL: "true",
+    PARLOR_GUEST_TOKEN_AUDIENCE: "doubletake",
   };
   let additions = "";
   for (const [key, value] of Object.entries(defaults)) {
@@ -201,13 +201,13 @@ export async function prepareLocalEnvironment({ create = false } = {}) {
       });
       additions += `PARLOR_GUEST_TOKEN_KEYS='${values.PARLOR_GUEST_TOKEN_KEYS}'\n`;
     }
-    if (!values.POPPYCOCK_CONTINUITY_SECRET) {
-      values.POPPYCOCK_CONTINUITY_SECRET = randomBytes(32).toString("base64url");
-      additions += `POPPYCOCK_CONTINUITY_SECRET=${values.POPPYCOCK_CONTINUITY_SECRET}\n`;
+    if (!values.DOUBLETAKE_CONTINUITY_SECRET) {
+      values.DOUBLETAKE_CONTINUITY_SECRET = randomBytes(32).toString("base64url");
+      additions += `DOUBLETAKE_CONTINUITY_SECRET=${values.DOUBLETAKE_CONTINUITY_SECRET}\n`;
     }
   }
   validateSigningConfiguration(values);
-  if (!create && (!state || !local.values.CONVEX_DEPLOYMENT || !local.values.POPPYCOCK_LOCAL)) {
+  if (!create && (!state || !local.values.CONVEX_DEPLOYMENT || !local.values.DOUBLETAKE_LOCAL)) {
     throw new Error("Local bootstrap is incomplete. Run pnpm bootstrap first.");
   }
   if (additions) {
@@ -222,7 +222,7 @@ export async function prepareLocalEnvironment({ create = false } = {}) {
     if (
       key.startsWith("CONVEX_") ||
       key.startsWith("PARLOR_") ||
-      key.startsWith("POPPYCOCK_") ||
+      key.startsWith("DOUBLETAKE_") ||
       key.startsWith("NEXT_PUBLIC_CONVEX_")
     )
       delete cliEnv[key];
@@ -244,7 +244,7 @@ async function ensurePortFree(port) {
     server.once("error", () =>
       reject(
         new Error(
-          `Port ${port} is already in use. Stop the process using it; Poppycock will not take over another backend or web server.`,
+          `Port ${port} is already in use. Stop the process using it; Double Take will not take over another backend or web server.`,
         ),
       ),
     );
@@ -435,8 +435,8 @@ export async function configureBackend(processes, local, backend) {
     SETTINGS_FILE,
     [
       `PARLOR_GUEST_TOKEN_KEYS='${local.values.PARLOR_GUEST_TOKEN_KEYS}'`,
-      "PARLOR_GUEST_TOKEN_AUDIENCE=poppycock",
-      "POPPYCOCK_LOCAL=true",
+      "PARLOR_GUEST_TOKEN_AUDIENCE=doubletake",
+      "DOUBLETAKE_LOCAL=true",
       "",
     ].join("\n"),
     { mode: 0o600 },
@@ -508,7 +508,7 @@ export async function startWeb(processes, local) {
     ],
     {
       env: { ...process.env, ...local.values, NODE_ENV: "development" },
-      label: "Poppycock web server",
+      label: "Double Take web server",
     },
   );
 }
