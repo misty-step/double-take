@@ -151,55 +151,56 @@ export type CalibrationExample = {
  * Curated calibration examples. Each expected level is the authored intent for
  * the rubric; `scripts/judge-probe.mjs` can compare a live judge against these
  * when a server key is available, and tests pin the deck's shape offline.
+ * Reconciliation decisions and probe evidence: docs/calibration.md.
  */
 export const CALIBRATION: CalibrationExample[] = [
   {
     pairKey: "vow-villain",
     sentence: "I will love you until death takes me",
-    expected: { plausibilityA: 3, plausibilityB: 3, coherence: 3, specificity: 2 },
-    note: "Classic double reading; both framings hold without changing a word.",
+    expected: { plausibilityA: 3, plausibilityB: 2, coherence: 3, specificity: 2 },
+    note: "Classic double reading; both framings hold without changing a word. The villain borrows the vow's idiom — natural there, not native. Live judge read B Impossible under rubric@1, Strained under rubric@2; recorded divergence, docs/calibration.md.",
   },
   {
     pairKey: "vow-villain",
     sentence: "You will never escape me now",
-    expected: { plausibilityA: 0, plausibilityB: 3, coherence: 2, specificity: 2 },
-    note: "Collapses under the vow; the weaker reading must sink it.",
+    expected: { plausibilityA: 1, plausibilityB: 3, coherence: 2, specificity: 2 },
+    note: "A threat at home in the monologue; as a vow it is a possessive promise — strained, not impossible. Calibrates the one-point floor. Live judge agrees (A1, stable across rubric versions).",
   },
   {
     pairKey: "vow-villain",
     sentence: "I promise to stay, and you will regret this",
     expected: { plausibilityA: 2, plausibilityB: 2, coherence: 0, specificity: 2 },
-    note: "Two stitched halves; the comma cannot hide two different speakers.",
+    note: "Two stitched halves; the comma cannot hide two different speakers. Expected levels express that each half works somewhere; judged whole-in-context the halves collapse (live A1/B2 under rubric@2) and the stitched gate dominates either way.",
   },
   {
     pairKey: "vet-boss",
     sentence: "This will only hurt for a moment",
     expected: { plausibilityA: 3, plausibilityB: 2, coherence: 3, specificity: 2 },
-    note: "Kind to a dog, cold from a manager; earns the weaker reading.",
+    note: "Kind to a dog, cold from a manager; earns the weaker reading. The bedside register stumbles in a conference room, yet managers do say exactly this — the semantics straddle Strained and Natural, and so does the live judge (rubric@2: B1 thrice, B2 once). Deck keeps Natural as authored intent.",
   },
   {
     pairKey: "vet-boss",
     sentence: "We need to talk",
-    expected: { plausibilityA: 2, plausibilityB: 2, coherence: 3, specificity: 0 },
-    note: "Fits everything; the specificity gate must zero it.",
+    expected: { plausibilityA: 2, plausibilityB: 3, coherence: 3, specificity: 0 },
+    note: "Fits everything; the specificity gate must zero it. The boss side is the stock idiom of the bad-news meeting; the dog side stumbles (talking to a creature that cannot talk). Live: A1/B3 across rubrics, gate unchanged.",
   },
   {
     pairKey: "orbit-hold",
     sentence: "Please hold, your call matters to us",
     expected: { plausibilityA: 0, plausibilityB: 3, coherence: 3, specificity: 1 },
-    note: "A perfect hold message that nobody would transmit from a dying capsule.",
+    note: "A perfect hold message that nobody would transmit from a dying capsule. One sentence, not stitching — both halves serve the hold context. The live judge still calls it stitched under rubric@2 (residual comma bias); the outcome is zero either way.",
   },
   {
     pairKey: "menu-spell",
     sentence: "Tonight we feast on what remains",
-    expected: { plausibilityA: 3, plausibilityB: 3, coherence: 3, specificity: 2 },
-    note: "Works as a harvest menu and as an incantation; same words, colder in the circle.",
+    expected: { plausibilityA: 2, plausibilityB: 2, coherence: 3, specificity: 2 },
+    note: "Works as a harvest menu and as an incantation — poetic in both registers, native to neither. Natural on both sides; the live judge agrees (A2/B2, stable across rubrics and the release-day probe).",
   },
   {
     pairKey: "letter-fineprint",
-    sentence: "By the time you read this, it will be too late to refuse",
-    expected: { plausibilityA: 1, plausibilityB: 3, coherence: 2, specificity: 3 },
-    note: "Fine print at home; a love letter struggles — one point survives.",
+    sentence: "You agree to everything the moment you open this",
+    expected: { plausibilityA: 1, plausibilityB: 3, coherence: 2, specificity: 2 },
+    note: "Fine print at home: opening seals the agreement. A love letter strains it into a presumptuous ultimatum — one point survives. Replaces the unplayable 13-word original (over the twelve-word cap); live rubric@2 reads A1/B3, 4/4 repeats.",
   },
 ];
 

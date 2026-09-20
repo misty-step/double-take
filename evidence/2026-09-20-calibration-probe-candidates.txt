@@ -1,0 +1,31 @@
+# Entry #8 replacement candidates — live probe, 2026-09-20
+# Method: /tmp/candidate-probe.mjs (throwaway, not committed) imported the
+# production request builder from convex/rubrics.ts (rubric@2) and composed
+# points via convex/rules.ts, judged against the letter-fineprint pair with
+# model typesafe/jev-1.13 (served typesafe/jev-1.13-20260917), 4 repeats each.
+# Selection: "You agree to everything the moment you open this" reproduces the
+# entry's authored design (A1/B3 -> 1 pt) and stays under the 12-word cap.
+# The rejected candidates: "Once you read this..." reads A2 (too comfortable
+# as a love letter, 3 pts); "This letter binds us both..." inverts the
+# asymmetry (A2/B1); "The undersigned agrees to love without exception"
+# collapses both sides to Strained (A1/B1).
+
+[11w] "Once you read this, it will be too late to refuse" [1/4] rubric=double-take-rubric@2 A2/B2/coh3/spec1 -> 3 pts (ok) conf=[a:0.45 b:0.41]
+[11w] "Once you read this, it will be too late to refuse" [2/4] rubric=double-take-rubric@2 A2/B3/coh3/spec1 -> 3 pts (ok) conf=[a:0.44 b:0.25]
+[11w] "Once you read this, it will be too late to refuse" [3/4] rubric=double-take-rubric@2 A2/B2/coh3/spec1 -> 3 pts (ok) conf=[a:0.46 b:0.42]
+[11w] "Once you read this, it will be too late to refuse" [4/4] rubric=double-take-rubric@2 A2/B3/coh3/spec1 -> 3 pts (ok) conf=[a:0.51 b:0.21]
+
+[9w] "You agree to everything the moment you open this" [1/4] rubric=double-take-rubric@2 A1/B3/coh3/spec2 -> 1 pts (ok) conf=[a:0.64 b:0.27]
+[9w] "You agree to everything the moment you open this" [2/4] rubric=double-take-rubric@2 A1/B3/coh3/spec2 -> 1 pts (ok) conf=[a:0.64 b:0.26]
+[9w] "You agree to everything the moment you open this" [3/4] rubric=double-take-rubric@2 A1/B3/coh3/spec2 -> 1 pts (ok) conf=[a:0.63 b:0.28]
+[9w] "You agree to everything the moment you open this" [4/4] rubric=double-take-rubric@2 A1/B3/coh3/spec2 -> 1 pts (ok) conf=[a:0.64 b:0.27]
+
+[10w] "This letter binds us both the moment you read it" [1/4] rubric=double-take-rubric@2 A2/B1/coh3/spec2 -> 1 pts (ok) conf=[a:0.55 b:0.26]
+[10w] "This letter binds us both the moment you read it" [2/4] rubric=double-take-rubric@2 A2/B1/coh3/spec2 -> 1 pts (ok) conf=[a:0.57 b:0.26]
+[10w] "This letter binds us both the moment you read it" [3/4] rubric=double-take-rubric@2 A2/B1/coh3/spec2 -> 1 pts (ok) conf=[a:0.58 b:0.25]
+[10w] "This letter binds us both the moment you read it" [4/4] rubric=double-take-rubric@2 A2/B1/coh3/spec2 -> 1 pts (ok) conf=[a:0.59 b:0.28]
+
+[7w] "The undersigned agrees to love without exception" [1/4] rubric=double-take-rubric@2 A1/B1/coh2/spec2 -> 1 pts (ok) conf=[a:0.72 b:0.68]
+[7w] "The undersigned agrees to love without exception" [2/4] rubric=double-take-rubric@2 A1/B1/coh2/spec2 -> 1 pts (ok) conf=[a:0.66 b:0.67]
+[7w] "The undersigned agrees to love without exception" [3/4] rubric=double-take-rubric@2 A1/B1/coh2/spec2 -> 1 pts (ok) conf=[a:0.7 b:0.64]
+[7w] "The undersigned agrees to love without exception" [4/4] rubric=double-take-rubric@2 A1/B1/coh2/spec2 -> 1 pts (ok) conf=[a:0.69 b:0.68]
