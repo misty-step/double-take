@@ -8,6 +8,7 @@
 import { resolvePlayer } from "@parlor/convex";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { action, internalMutation } from "./_generated/server";
 import { pairByKey } from "./content";
 import { JudgeUnavailableError, readJudgeConfig, runAdjudication } from "./judge";
@@ -107,13 +108,40 @@ export const record = internalMutation({
   },
 });
 
+type SoloLevels = {
+  plausibilityA: number;
+  plausibilityB: number;
+  coherence: number;
+  specificity: number;
+};
+
+type SoloJudgment = {
+  adjudicationId: Id<"adjudications">;
+  reused: boolean;
+  rubricVersion: string;
+  model: string;
+  levels: SoloLevels;
+  weaker: number;
+  points: number;
+  gate: string;
+  gateMessage: string;
+  confidenceMin: number;
+};
+
+type SoloJudgeOutcome = {
+  ok: boolean;
+  code?: string;
+  message?: string;
+  result?: SoloJudgment & { text: string };
+};
+
 export const judge = action({
   args: {
     sentence: v.string(),
     pairKey: v.string(),
     guestToken: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<SoloJudgeOutcome> => {
     const check = checkSentence(args.sentence);
     if (!check.ok) return { ok: false, code: check.code, message: check.message };
     const pair = pairByKey(args.pairKey);
