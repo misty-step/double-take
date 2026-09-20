@@ -1,0 +1,7 @@
+packages:
+  - vendor/parlor/packages/*
+  - vendor/parlor/integrations/convex
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
