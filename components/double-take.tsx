@@ -6,7 +6,7 @@ import { useHeartbeat } from "@parlor/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { INSTRUCTIONS, PAIRS, pairByKey } from "../convex/content";
-import { MAX_WORDS, wordCount } from "../convex/rules";
+import { MAX_SUBMISSIONS_PER_ROUND, MAX_WORDS, wordCount } from "../convex/rules";
 import { useGuest } from "../app/providers";
 
 type RoomId = Id<"rooms">;
@@ -27,6 +27,10 @@ const LEVEL_NAMES = {
   ],
   specificity: ["Empty", "Vague", "Concrete", "Vivid"],
 } as const;
+
+function formatPoints(points: number): string {
+  return `${points} ${points === 1 ? "pt" : "pts"}`;
+}
 
 function useSound() {
   const [enabled, setEnabled] = useState(false);
@@ -64,18 +68,25 @@ function useSound() {
   return { enabled, toggle, chime };
 }
 
+/** One sentence, shown under one named framing, then the other. */
 function RevealStage({
   text,
+  label,
+  setting,
   stage,
-  chime,
 }: {
   text: string;
+  label: string;
+  setting?: string;
   stage: "a" | "b";
-  chime: (high: boolean) => void;
 }) {
   return (
     <div className={stage === "a" ? "atmosphere-a fade-in" : "atmosphere-b fade-in"}>
+      <div className="reading-context">
+        {stage === "a" ? "First reading" : "Second reading"} — <strong>{label}</strong>
+      </div>
       <div className="reading">{text}</div>
+      {setting && <div className="small muted">{setting}</div>}
     </div>
   );
 }
@@ -113,15 +124,18 @@ function ScoreSummary({
         </span>
       </div>
       <div className="score-line">
-        <span className="points">{adjudication.points} pts</span>
+        <span className="points">{formatPoints(adjudication.points)}</span>
         <span>{adjudication.gateMessage}</span>
       </div>
-      <div className="score-line muted">
-        <span>weaker reading sets the points</span>
-        <span>
-          judge confidence {Math.round(adjudication.confidenceMin * 100)}% · {adjudication.rubricVersion}
-        </span>
-      </div>
+      <details className="score-details">
+        <summary className="small muted">Scoring details</summary>
+        <div className="score-line muted small">
+          <span>weaker reading sets the points</span>
+          <span>
+            judge confidence {Math.round(adjudication.confidenceMin * 100)}% · {adjudication.rubricVersion}
+          </span>
+        </div>
+      </details>
     </div>
   );
 }
@@ -155,14 +169,18 @@ function Writer({
   disabled,
   busy,
   hint,
+  initialText = "",
+  submitLabel = "Submit the line",
 }: {
   pairKey: string;
   onSubmit: (text: string) => Promise<{ ok: boolean; code?: string; message?: string }>;
   disabled: boolean;
   busy: boolean;
   hint?: string;
+  initialText?: string;
+  submitLabel?: string;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [error, setError] = useState<string | null>(null);
   const words = wordCount(text);
   const tooLong = words > MAX_WORDS;
@@ -196,7 +214,7 @@ function Writer({
           type="submit"
           disabled={disabled || busy || tooLong || words === 0}
         >
-          {busy ? "Sending…" : "Submit the line"}
+          {busy ? "Sending…" : submitLabel}
         </button>
       </div>
       {error && <div className="error">{error}</div>}
@@ -272,7 +290,12 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
       {result && (
         <div className="card">
           <h2>Reveal</h2>
-          <RevealStage text={result.text} stage={stage} chime={sound.chime} />
+          <RevealStage
+            text={result.text}
+            stage={stage}
+            label={stage === "a" ? pair.contextA.label : pair.contextB.label}
+            setting={stage === "a" ? pair.contextA.setting : pair.contextB.setting}
+          />
           <div className="button-row" style={{ marginTop: "0.75rem" }}>
             {stage === "a" ? (
               <button
@@ -349,26 +372,35 @@ function RoomGame({
   const [stage, setStage] = useState<"a" | "b">("a");
   const requestRef = useRef(crypto.randomUUID());
   const judgeRef = useRef(false);
+  const [, setClock] = useState(0);
+
+  // Keep the countdown and the deadline flow honest while the round runs.
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock((tick) => tick + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const game = view;
   const pair = useMemo(() => (game ? pairByKey(game.pair.key) : undefined), [game]);
 
   const runJudgeFlow = useCallback(async () => {
     if (!game || game.phase !== "writing" || judgeRef.current) return;
+    const deadlinePassed = Date.now() > game.deadline;
     const allSubmitted = game.players.every((player) => player.submitted);
     const allJudged = game.players.every((player) => player.judged);
-    const deadlinePassed = Date.now() > game.deadline;
-    if (allSubmitted && !allJudged) {
+    const pendingJudgable = game.players.some((player) => player.submitted && !player.judged);
+    if (pendingJudgable && (allSubmitted || deadlinePassed)) {
       judgeRef.current = true;
       try {
-        const response = await judge({ gameId });
+        const response = await judge({ gameId, guestToken: token });
         if (!response.ok && response.code !== "JUDGE_UNCONFIGURED")
           setNotice({ code: response.code ?? "JUDGE_UNAVAILABLE", message: response.message ?? "Nothing was scored." });
         else if (response.ok) setNotice(null);
       } finally {
         judgeRef.current = false;
       }
-    } else if (allJudged && (allSubmitted || deadlinePassed)) {
+    } else if ((allSubmitted && allJudged) || (deadlinePassed && !pendingJudgable)) {
+      // The round closes on its own clock: no-shows cannot hold the table.
       judgeRef.current = true;
       try {
         const response = await beginReveal({ gameId, guestToken: token });
@@ -398,6 +430,8 @@ function RoomGame({
 
   const mine = game.me.submission;
   const secondsLeft = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
+  const timeUp = secondsLeft === 0;
+  const revisionsLeft = MAX_SUBMISSIONS_PER_ROUND - (mine?.revision ?? 0);
   const allJudged = game.players.every((player) => player.judged);
 
   return (
@@ -419,13 +453,20 @@ function RoomGame({
         <>
           <PairCards pair={pair} />
           <Writer
+            key={mine?.revision ?? 0}
             pairKey={pair.key}
             busy={busy}
-            disabled={mine !== null}
+            disabled={timeUp || revisionsLeft === 0}
+            initialText={mine?.text ?? ""}
+            submitLabel={mine ? "Revise the line" : "Submit the line"}
             hint={
-              mine
-                ? `Submitted: “${mine.text}”. You can revise below while the round is open.`
-                : `About ${secondsLeft}s left in this round.`
+              timeUp
+                ? "The writing window closed. The reveal comes next."
+                : mine
+                  ? revisionsLeft > 0
+                    ? `Submitted: “${mine.text}”. You can revise below while the round is open — ${revisionsLeft} ${revisionsLeft === 1 ? "change" : "changes"} left.`
+                    : `Submitted: “${mine.text}”. That was the last change for this round.`
+                  : `About ${secondsLeft}s left in this round.`
             }
             onSubmit={async (text) => {
               setBusy(true);
@@ -446,13 +487,21 @@ function RoomGame({
                     {player.seatIndex === 0 ? " · host" : ""}
                   </span>
                   <span className="pill">
-                    {player.judged ? "judged" : player.submitted ? "in" : "writing…"}
+                    {player.judged
+                      ? "judged"
+                      : player.submitted
+                        ? timeUp
+                          ? "judging…"
+                          : "in"
+                        : timeUp
+                          ? "no line"
+                          : "writing…"}
                   </span>
                 </div>
               ))}
             </div>
             <p className="small muted">
-              Other lines stay hidden until the reveal. {secondsLeft === 0 ? "Time is up." : ""}
+              Other lines stay hidden until the reveal. {timeUp ? "Time is up — the round is closing." : ""}
             </p>
             <div className="button-row">
               <button
@@ -479,7 +528,12 @@ function RoomGame({
           <h2>The reveal</h2>
           {mine && (
             <>
-              <RevealStage text={mine.text} stage={stage} chime={sound.chime} />
+              <RevealStage
+                text={mine.text}
+                stage={stage}
+                label={stage === "a" ? pair.contextA.label : pair.contextB.label}
+                setting={stage === "a" ? pair.contextA.setting : pair.contextB.setting}
+              />
               <div className="button-row" style={{ marginTop: "0.5rem" }}>
                 {stage === "a" ? (
                   <button
@@ -505,7 +559,7 @@ function RoomGame({
                 <div className="row">
                   <strong>{item.name}</strong>
                   {item.adjudication && (
-                    <span className="points">{item.adjudication.points} pts</span>
+                    <span className="points">{formatPoints(item.adjudication.points)}</span>
                   )}
                 </div>
                 <p className="reading" style={{ fontSize: "1.2rem" }}>

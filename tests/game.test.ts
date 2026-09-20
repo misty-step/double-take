@@ -220,4 +220,128 @@ describe("double take game", () => {
     const adjudications = await t.run(async (ctx) => ctx.db.query("adjudications").collect());
     expect(adjudications).toHaveLength(0);
   });
+
+  it("accepts revisions up to the cap and refuses the next without charging", async () => {
+    const { clients, t, gameId } = await fixture();
+    for (const text of ["First draft line", "Second draft line", "Third draft line"]) {
+      const accepted = await clients[0]!.mutation(api.game.submit, { gameId, text });
+      expect(accepted).toMatchObject({ ok: true });
+    }
+    const charged = await t.run(async (ctx) => {
+      const rows = await ctx.db.query("rateLimits").collect();
+      return rows[0]?.count ?? 0;
+    });
+    const refused = await clients[0]!.mutation(api.game.submit, {
+      gameId,
+      text: "Fourth draft line",
+    });
+    expect(refused).toMatchObject({ ok: false, code: "REVISION_LIMIT" });
+    const afterRefusal = await t.run(async (ctx) => {
+      const rows = await ctx.db.query("rateLimits").collect();
+      return rows[0]?.count ?? 0;
+    });
+    expect(afterRefusal).toBe(charged);
+    const submissions = await t.run(async (ctx) => ctx.db.query("submissions").collect());
+    expect(submissions[0]?.revision).toBe(3);
+    expect(submissions[0]?.text).toBe("Third draft line");
+  });
+
+  it("drops an in-flight judgment when the line was revised, then judges the revision", async () => {
+    const { clients, host, t, gameId } = await fixture(2, { a: 3, b: 3, coherence: 3, specificity: 2 });
+    await clients[0]!.mutation(api.game.submit, { gameId, text: "First draft of the line" });
+    let revised = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        if (!revised) {
+          revised = true;
+          await clients[0]!.mutation(api.game.submit, { gameId, text: "Second draft of the line" });
+        }
+        return new Response(JSON.stringify(judgeResponse({ a: 3, b: 3, coherence: 3, specificity: 2 })), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    const stale = await host.action(api.game.judge, { gameId });
+    expect(stale.judged).toBe(0);
+    let submissions = await t.run(async (ctx) => ctx.db.query("submissions").collect());
+    expect(submissions[0]?.status).toBe("pending");
+    expect(submissions[0]?.revision).toBe(2);
+    const fresh = await host.action(api.game.judge, { gameId });
+    expect(fresh).toMatchObject({ ok: true, judged: 1 });
+    submissions = await t.run(async (ctx) => ctx.db.query("submissions").collect());
+    expect(submissions[0]?.status).toBe("judged");
+    expect(submissions[0]?.normalized).toBe("second draft of the line");
+  });
+
+  it("refuses judge calls from callers who are not seated at the table", async () => {
+    const { t, clients, gameId } = await fixture();
+    await clients[0]!.mutation(api.game.submit, { gameId, text: "A line that works in both worlds" });
+    const anonymous = await t.action(api.game.judge, { gameId });
+    expect(anonymous).toMatchObject({ ok: false, code: "NOT_AUTHORIZED" });
+    const outsider = t.withIdentity({ subject: "outsider-judge", issuer: "double-take-test" });
+    await outsider.mutation(api.rooms.createRoom, { displayName: "Outsider" });
+    const refused = await outsider.action(api.game.judge, { gameId });
+    expect(refused).toMatchObject({ ok: false, code: "MATCH_PARTICIPANT_REQUIRED" });
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it("refunds the caller's judge charge when the judge is down", async () => {
+    const { clients, host, t, gameId } = await fixture();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("overloaded", { status: 529 })));
+    await clients[0]!.mutation(api.game.submit, { gameId, text: "A line that works in both worlds" });
+    const before = await t.run(async (ctx) => {
+      const rows = await ctx.db.query("rateLimits").collect();
+      return rows[0]?.count ?? 0;
+    });
+    const failed = await host.action(api.game.judge, { gameId });
+    expect(failed.ok).toBe(false);
+    const after = await t.run(async (ctx) => {
+      const rows = await ctx.db.query("rateLimits").collect();
+      return rows[0]?.count ?? 0;
+    });
+    expect(after).toBe(before);
+  });
+
+  it("lets the table reveal after the deadline even when a player never submits", async () => {
+    const { clients, host, t, gameId } = await fixture();
+    await clients[0]!.mutation(api.game.submit, { gameId, text: "A line that works in both worlds" });
+    await host.action(api.game.judge, { gameId });
+    const early = await host.mutation(api.game.beginReveal, { gameId });
+    expect(early).toMatchObject({ ok: false, code: "NOT_READY" });
+    await t.run(async (ctx) => {
+      const rounds = await ctx.db.query("rounds").collect();
+      await ctx.db.patch(rounds[0]!._id, { deadline: Date.now() - 1 });
+    });
+    const late = await clients[1]!.mutation(api.game.beginReveal, { gameId });
+    expect(late.ok).toBe(true);
+    const view = await clients[1]!.query(api.game.view, { gameId });
+    expect(view.phase).toBe("reveal");
+    expect(view.players.find((player) => player.seatIndex === 0)?.roundPoints).toBe(6);
+  });
+
+  it("refuses anonymous solo judge calls and refunds solo outage passes", async () => {
+    installJudge({ a: 3, b: 3, coherence: 3, specificity: 2 });
+    const t = convexTest(schema, modules);
+    const anonymous = await t.action(api.solo.judge, {
+      sentence: "A line that works in both worlds",
+      pairKey: "vow-villain",
+    });
+    expect(anonymous).toMatchObject({ ok: false, code: "NOT_AUTHORIZED" });
+    const seated = t.withIdentity({ subject: "solo-player", issuer: "double-take-test" });
+    const judged = await seated.action(api.solo.judge, {
+      sentence: "A line that works in both worlds",
+      pairKey: "vow-villain",
+    });
+    expect(judged.ok).toBe(true);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("overloaded", { status: 529 })));
+    const failed = await seated.action(api.solo.judge, {
+      sentence: "Another line for two contexts",
+      pairKey: "vow-villain",
+    });
+    expect(failed.ok).toBe(false);
+    const rows = await t.run(async (ctx) => ctx.db.query("rateLimits").collect());
+    expect(rows[0]?.count ?? 0).toBe(1);
+  });
 });

@@ -48,8 +48,10 @@ These stay on the Worker. They never go into the client bundle or the browser.
 
 ## 5. Required checks before release
 
-1. Exact-head CI (no workflows exist in the repo today; the release owner either adds
-   them or records that no repository-required checks exist).
+1. Exact-head CI: `.github/workflows/ci.yml` runs `pnpm install --frozen-lockfile`,
+   `pnpm check` (parlor build + typecheck + tests) and `pnpm build` on every PR and
+   `main` push. No secrets are wired into CI. The release owner records the check run
+   for the merged head.
 2. Independent review verdict PASS on the implementation card.
 3. Candidate browser evidence (see `evidence/`) plus production two-client journey.
 

@@ -171,20 +171,21 @@ export const submit = mutation({
       };
     const check = checkSentence(args.text);
     if (!check.ok) return { ok: false, code: check.code, message: check.message };
-    await chargeRateLimit(ctx, actor.playerId, now);
     const existing = await ctx.db
       .query("submissions")
       .withIndex("by_game_round_player", (q) =>
         q.eq("gameId", args.gameId).eq("round", game.round).eq("playerId", actor.playerId),
       )
       .unique();
+    if (existing && existing.revision >= MAX_SUBMISSIONS_PER_ROUND)
+      return {
+        ok: false,
+        code: "REVISION_LIMIT",
+        message: "That was the last revision for this round. Live with it — or don't.",
+      };
+    // Charge only accepted lines; refused revisions never cost a token.
+    await chargeRateLimit(ctx, actor.playerId, now);
     if (existing) {
-      if (existing.revision >= MAX_SUBMISSIONS_PER_ROUND)
-        return {
-          ok: false,
-          code: "REVISION_LIMIT",
-          message: "That was the last revision for this round. Live with it — or don't.",
-        };
       await ctx.db.patch(existing._id, {
         text: check.text,
         normalized: check.normalized,
@@ -233,6 +234,7 @@ export const pendingSubmissions = internalQuery({
           submissionId: submission._id,
           text: submission.text,
           normalized: submission.normalized,
+          revision: submission.revision,
         })),
     };
   },
@@ -244,6 +246,7 @@ export const applyAdjudication = internalMutation({
     submissionId: v.id("submissions"),
     pairKey: v.string(),
     normalized: v.string(),
+    revision: v.number(),
     rubricVersion: v.string(),
     model: v.string(),
     levels: v.object({
@@ -261,7 +264,11 @@ export const applyAdjudication = internalMutation({
   },
   handler: async (ctx, args) => {
     const submission = await ctx.db.get(args.submissionId);
-    if (!submission || submission.status !== "pending") return { applied: false };
+    if (!submission || submission.status !== "pending") return { applied: false, stale: false };
+    if (submission.revision !== args.revision || submission.normalized !== args.normalized)
+      // The writer revised while this judgment was in flight. Leave it pending
+      // so the fresh text gets its own pass instead of a stale score.
+      return { applied: false, stale: true };
     const retained = await ctx.db
       .query("adjudications")
       .withIndex("by_pair_normalized", (q) =>
@@ -297,12 +304,75 @@ export const applyAdjudication = internalMutation({
 });
 
 /**
- * Judge every pending submission of the current round. Called by a player or
- * the host; a judge outage returns honestly and leaves submissions pending
- * so a later retry costs nothing.
+ * Gate for the paid judge action: the caller must be a seated participant.
+ * Charges one rate-limit token before any evaluator spend; the pass is
+ * refunded when nothing was judged.
+ */
+export const judgeGate = internalMutation({
+  args: { gameId: v.id("games"), guestToken: v.optional(v.string()) },
+  returns: v.object({
+    ok: v.boolean(),
+    code: v.optional(v.string()),
+    message: v.optional(v.string()),
+    playerId: v.optional(v.id("players")),
+  }),
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get(args.gameId);
+    if (!game) return { ok: false, code: "GAME_NOT_FOUND", message: "No such game." };
+    let playerId: Id<"players">;
+    try {
+      const actor = await resolvePlayer(ctx, args.guestToken);
+      playerId = actor.playerId;
+    } catch {
+      return {
+        ok: false,
+        code: "NOT_AUTHORIZED",
+        message: "A seat at the table is required before the judge will answer.",
+      };
+    }
+    const participant = await ctx.db
+      .query("matchParticipants")
+      .withIndex("by_match_player", (q) =>
+        q.eq("matchId", game.matchId).eq("playerId", playerId),
+      )
+      .unique();
+    if (!participant)
+      return {
+        ok: false,
+        code: "MATCH_PARTICIPANT_REQUIRED",
+        message: "You are not seated at this table.",
+      };
+    try {
+      await chargeRateLimit(ctx, playerId, Date.now());
+    } catch (error) {
+      const data = (error as { data?: { code?: string; message?: string } }).data;
+      if (data?.code === "SLOW_DOWN")
+        return {
+          ok: false,
+          code: "SLOW_DOWN",
+          message: data.message ?? "Slow down for a minute.",
+        };
+      throw error;
+    }
+    return { ok: true, playerId };
+  },
+});
+
+type JudgeOutcome = {
+  ok: boolean;
+  judged: number;
+  failed: number;
+  code?: string;
+  message?: string;
+};
+
+/**
+ * Judge every pending submission of the current round. Seated participants
+ * only; charges before spending and refunds a pass that judged nothing, so a
+ * judge outage or a stale in-flight line never costs anything.
  */
 export const judge = action({
-  args: { gameId: v.id("games") },
+  args: { gameId: v.id("games"), guestToken: v.optional(v.string()) },
   returns: v.object({
     ok: v.boolean(),
     judged: v.number(),
@@ -310,7 +380,7 @@ export const judge = action({
     code: v.optional(v.string()),
     message: v.optional(v.string()),
   }),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<JudgeOutcome> => {
     const config = readJudgeConfig(process.env as Record<string, string | undefined>);
     if (!config)
       return {
@@ -319,6 +389,19 @@ export const judge = action({
         failed: 0,
         code: "JUDGE_UNCONFIGURED",
         message: "The judge is not configured on this server yet.",
+      };
+    const gate = await ctx.runMutation(internal.game.judgeGate, {
+      gameId: args.gameId,
+      guestToken: args.guestToken,
+    });
+    const playerId = gate.playerId;
+    if (!gate.ok || playerId === undefined)
+      return {
+        ok: false,
+        judged: 0,
+        failed: 0,
+        code: gate.code ?? "NOT_AUTHORIZED",
+        message: gate.message ?? "A seat at the table is required.",
       };
     const pending = await ctx.runQuery(internal.game.pendingSubmissions, {
       gameId: args.gameId,
@@ -341,10 +424,11 @@ export const judge = action({
     for (const item of pending.submissions) {
       try {
         const draft = await runAdjudication(config, pair, item.text);
-        await ctx.runMutation(internal.game.applyAdjudication, {
+        const applied = await ctx.runMutation(internal.game.applyAdjudication, {
           submissionId: item.submissionId,
           pairKey: pending.pairKey,
           normalized: item.normalized,
+          revision: item.revision,
           rubricVersion: draft.rubricVersion,
           model: draft.model,
           levels: draft.levels,
@@ -355,7 +439,7 @@ export const judge = action({
           confidenceMin: draft.confidenceMin,
           rawJson: draft.rawJson,
         });
-        judged += 1;
+        if (applied.applied) judged += 1;
       } catch (error) {
         if (error instanceof JudgeUnavailableError) {
           failed += 1;
@@ -366,6 +450,9 @@ export const judge = action({
         }
       }
     }
+    if (judged === 0)
+      // The pass spent nothing (empty round, stale lines, or an outage).
+      await ctx.runMutation(internal.limits.refund, { playerId });
     if (failed > 0)
       return {
         ok: false,
@@ -411,6 +498,7 @@ export const beginReveal = mutation({
       if (!submission.adjudicationId) continue;
       const adjudication = await ctx.db.get(submission.adjudicationId);
       if (!adjudication) continue;
+      if (adjudication.normalized !== submission.normalized) continue;
       const index = players.findIndex((player) => player.playerId === submission.playerId);
       if (index < 0) continue;
       players[index] = {

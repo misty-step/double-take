@@ -12,26 +12,17 @@ import type { Id } from "./_generated/dataModel";
 import { action, internalMutation } from "./_generated/server";
 import { pairByKey } from "./content";
 import { JudgeUnavailableError, readJudgeConfig, runAdjudication } from "./judge";
-import { chargeRateLimit } from "./limits";
 import { checkSentence } from "./rules";
 
 export const ensurePlayer = internalMutation({
   args: { guestToken: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    if (args.guestToken === undefined) return null;
     try {
       const actor = await resolvePlayer(ctx, args.guestToken, { create: true });
       return actor.playerId;
     } catch {
       return null;
     }
-  },
-});
-
-export const charge = internalMutation({
-  args: { playerId: v.id("players") },
-  handler: async (ctx, args) => {
-    await chargeRateLimit(ctx, args.playerId, Date.now());
   },
 });
 
@@ -157,24 +148,28 @@ export const judge = action({
     const playerId = await ctx.runMutation(internal.solo.ensurePlayer, {
       guestToken: args.guestToken,
     });
-    if (playerId) {
-      try {
-        await ctx.runMutation(internal.solo.charge, { playerId });
-      } catch (error) {
-        const data = (error as { data?: { code?: string; message?: string } }).data;
-        if (data?.code === "SLOW_DOWN")
-          return {
-            ok: false,
-            code: "SLOW_DOWN",
-            message: data.message ?? "Slow down for a minute.",
-          };
-        throw error;
-      }
+    if (!playerId)
+      return {
+        ok: false,
+        code: "NOT_AUTHORIZED",
+        message: "A guest seat is required before the judge will answer.",
+      };
+    try {
+      await ctx.runMutation(internal.limits.charge, { playerId });
+    } catch (error) {
+      const data = (error as { data?: { code?: string; message?: string } }).data;
+      if (data?.code === "SLOW_DOWN")
+        return {
+          ok: false,
+          code: "SLOW_DOWN",
+          message: data.message ?? "Slow down for a minute.",
+        };
+      throw error;
     }
     try {
       const draft = await runAdjudication(config, pair, check.text);
       const retained = await ctx.runMutation(internal.solo.record, {
-        playerId: playerId ?? undefined,
+        playerId,
         pairKey: pair.key,
         normalized: check.normalized,
         rubricVersion: draft.rubricVersion,
@@ -189,8 +184,11 @@ export const judge = action({
       });
       return { ok: true, result: { text: check.text, ...retained } };
     } catch (error) {
-      if (error instanceof JudgeUnavailableError)
+      if (error instanceof JudgeUnavailableError) {
+        // A judge outage must not cost a charge; the retry stays free.
+        await ctx.runMutation(internal.limits.refund, { playerId });
         return { ok: false, code: error.code, message: error.message };
+      }
       throw error;
     }
   },

@@ -133,6 +133,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .players {
@@ -155,6 +156,31 @@ textarea {
   line-height: 1.35;
   margin: 1rem 0;
   text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+/* Names the framing next to the sentence in both reveal stages. */
+.reading-context {
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.reading-context strong {
+  color: var(--ink);
+}
+
+.score-details {
+  margin-top: 0.35rem;
+}
+
+.score-details summary {
+  cursor: pointer;
+}
+
+.score-details .score-line {
+  margin-top: 0.35rem;
 }
 
 /* Two atmospheres: the vow and the villain. */
