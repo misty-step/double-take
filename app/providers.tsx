@@ -19,6 +19,22 @@ const issuer: GuestCredentialIssuer = async (input) => {
     );
   return result;
 };
+
+/** Recovery path: deliberately drop the stranded identity and start a new guest seat. */
+export const resetIssuer: GuestCredentialIssuer = async () => {
+  const response = await fetch("/api/guest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "reset" }),
+    credentials: "same-origin",
+  });
+  const result = await response.json();
+  if (!response.ok)
+    throw new Error(
+      result.error ?? "Your seat could not be reset. Check your connection and try again.",
+    );
+  return result;
+};
 const GuestContext = createContext<UseGuestCredentialResult | null>(null);
 export function useGuest() {
   const guest = useContext(GuestContext);

@@ -6,13 +6,16 @@ const AUDIENCE = "doubletake";
 const ACCESS_LIFETIME_MS = 15 * 60_000;
 const CONTINUITY_LIFETIME_MS = 30 * 24 * 60 * 60_000;
 const COOKIE_DOMAIN = "double-take:guest-continuity:v1\0";
+/** Cookie names per build mode; reset clears both so a guest stranded by a mode switch can always recover. */
+const COOKIE_NAME_SECURE = "__Host-double-take-continuity";
+const COOKIE_NAME_LOCAL = "double-take-continuity";
 const MAX_BODY_BYTES = 8192;
 const ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
 const KEY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 const BASE64URL_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 type Environment = Readonly<Record<string, string | undefined>>;
-type IssuerInput = { mode: "acquire" | "refresh"; token?: string };
+type IssuerInput = { mode: "acquire" | "refresh" | "reset"; token?: string };
 type Continuity = {
   version: 1;
   audience: typeof AUDIENCE;
@@ -99,8 +102,25 @@ function readConfig(env: Environment): SessionConfig {
     secret,
     continuitySecret,
     secure,
-    cookieName: secure ? "__Host-double-take-continuity" : "double-take-continuity",
+    cookieName: secure ? COOKIE_NAME_SECURE : COOKIE_NAME_LOCAL,
   };
+}
+
+/** The cookie name the other build mode would use. */
+function alternateCookieName(config: SessionConfig): string {
+  return config.cookieName === COOKIE_NAME_SECURE ? COOKIE_NAME_LOCAL : COOKIE_NAME_SECURE;
+}
+
+function clearCookie(name: string, secure: boolean): string {
+  return [
+    `${name}=`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=0",
+    "Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+    ...(secure ? ["Secure"] : []),
+  ].join("; ");
 }
 
 function invalidContinuity(): never {
@@ -225,9 +245,12 @@ async function readInput(request: Request): Promise<IssuerInput> {
   if (
     !record(input) ||
     Object.keys(input).some((key) => key !== "mode" && key !== "token") ||
-    (input.mode !== "acquire" && input.mode !== "refresh") ||
+    (input.mode !== "acquire" && input.mode !== "refresh" && input.mode !== "reset") ||
     ("token" in input &&
-      (typeof input.token !== "string" || input.token.length === 0 || input.token.length > 4096))
+      (input.mode !== "refresh" ||
+        typeof input.token !== "string" ||
+        input.token.length === 0 ||
+        input.token.length > 4096))
   ) {
     invalidInput();
   }
@@ -262,9 +285,12 @@ export async function issueGuestSession(
     const config = readConfig(env);
     const input = await readInput(request);
     const now = Date.now();
-    let continuity = readContinuity(request.headers.get("cookie"), config, now);
+    // Reset deliberately drops the caller's own continuity (even an unreadable or
+    // invalid one) and starts a fresh guest identity; it cannot touch anyone else.
+    const reset = input.mode === "reset";
+    let continuity = reset ? null : readContinuity(request.headers.get("cookie"), config, now);
     if (!continuity) {
-      if (input.mode !== "acquire" || input.token !== undefined) {
+      if (!reset && (input.mode !== "acquire" || input.token !== undefined)) {
         throw new SessionError(
           401,
           "GUEST_CONTINUITY_REQUIRED",
@@ -289,9 +315,16 @@ export async function issueGuestSession(
         now: () => now,
       }),
     );
+    const responseHeaders = new Headers(headers);
+    responseHeaders.append("Set-Cookie", serializeContinuity(continuity, config, now));
+    if (reset) {
+      // Also expire the cookie name used by the other build mode, so a guest
+      // stranded by a dev/prod switch on one origin cannot loop on the failure.
+      responseHeaders.append("Set-Cookie", clearCookie(alternateCookieName(config), config.secure));
+    }
     return Response.json(
       { token: issued.token, expiresAt: issued.claims.expiresAt },
-      { headers: { ...headers, "Set-Cookie": serializeContinuity(continuity, config, now) } },
+      { headers: responseHeaders },
     );
   } catch (error) {
     if (error instanceof SessionError) {

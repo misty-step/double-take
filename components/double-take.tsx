@@ -7,7 +7,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { INSTRUCTIONS, PAIRS, pairByKey } from "../convex/content";
 import { MAX_SUBMISSIONS_PER_ROUND, MAX_WORDS, wordCount } from "../convex/rules";
-import { useGuest } from "../app/providers";
+import { useGuest, resetIssuer } from "../app/providers";
 
 type RoomId = Id<"rooms">;
 type GameId = Id<"games">;
@@ -810,14 +810,55 @@ export function DoubleTake() {
   const guest = useGuest();
   const [roomId, setRoomId] = useState<RoomId | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   useEffect(() => setMounted(true), []);
 
-  if (!mounted || !guest.credential)
+  const startFresh = useCallback(async () => {
+    if (resetting) return;
+    setResetting(true);
+    setResetError(null);
+    try {
+      // Drop the stranded local proof, then deliberately reset the server-side
+      // continuity: this starts a NEW guest identity, it does not recover the old one.
+      guest.clear();
+      await guest.acquire(resetIssuer);
+    } catch (error) {
+      setResetError(error instanceof Error ? error.message : "Guest access failed. Try again.");
+    } finally {
+      setResetting(false);
+    }
+  }, [guest, resetting]);
+
+  if (!mounted || (!guest.credential && (guest.loading || !guest.error)))
     return (
       <main className="stage">
         <div className="card">Setting the table…</div>
       </main>
     );
+
+  if (!guest.credential) {
+    const message =
+      guest.error instanceof Error
+        ? guest.error.message
+        : "Your seat could not be restored. Start as a new guest below.";
+    return (
+      <main className="stage">
+        <div className="card">
+          <h2>Your previous seat could not be restored.</h2>
+          <p className="small muted">{message}</p>
+          <p className="small muted">
+            Starting fresh creates a new guest identity. Your previous seat, room seats, and
+            scores cannot be recovered.
+          </p>
+          <button className="button primary" onClick={startFresh} disabled={resetting}>
+            {resetting ? "Setting a fresh table…" : "Start as a new guest"}
+          </button>
+          {resetError && <div className="error">{resetError}</div>}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="stage">
