@@ -46,6 +46,16 @@ These stay on the Worker. They never go into the client bundle or the browser.
 - `DOUBLETAKE_CONTINUITY_SECRET` — `pass` label `workstation/DOUBLETAKE_PARLOR_CONTINUITY_SECRET`.
 - `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL` — public, baked at build.
 
+Guest session API (same-origin only, strict JSON body): `POST /api/guest` with
+`mode:"acquire"` (fresh guest), `mode:"refresh"` (+ advisory token, restores the
+seat from the signed HttpOnly continuity cookie), or `mode:"reset"` (recovery:
+drops the caller's own cookie — even an unreadable one — and issues a NEW guest
+identity; the response also expires the cookie name used by the other build
+mode). The continuity cookie name is `__Host-double-take-continuity` in
+production and `double-take-continuity` in development; a seat created under
+one build mode cannot be restored under the other, which is why the client
+surfaces an explicit "Start as a new guest" recovery card.
+
 ## 5. Required checks before release
 
 1. Exact-head CI: `.github/workflows/ci.yml` runs `pnpm install --frozen-lockfile`,

@@ -49,9 +49,31 @@ None. No reproducible platform defect was observed in the exercised surface duri
 this build. Deeper compatibility testing (Linejam/Poppycock regression, presence,
 host transfer under disconnect) belongs to the platform card t_b2f5248d.
 
+## Round 3 journey (2026-09-20, production build on doubletake-qa VM)
+
+Exercised against the production build on the ephemeral QA VM with two
+persisted independent browser clients (fresh prod-issued guest cookies):
+
+- Same-cookie mid-round reconnect: reload during an open round restores the
+  seat through the valid continuity cookie; the submitted line and its
+  revision state survive (room YYWP, round 1). The app itself does not
+  persist the table code across reloads, so the player re-enters the code —
+  game-side UX, not a platform defect.
+- Replay: rounds 1→2→3 complete, each with a real Jev adjudication.
+- Host transfer: after the host stopped heartbeating (view exit), the
+  platform's deterministic heartbeat self-healing migrated the host to the
+  remaining player within the 60 s stale window (rooms.ts heartbeat) —
+  game-integration evidence for the acceptance, no platform defect.
+- Explicit lost-cookie recovery (separate from reconnection): a dev/prod
+  cookie-name split stranded both clients; the game now surfaces the error
+  with a "Start as a new guest" card backed by `POST /api/guest`
+  `mode:"reset"`. Verified live on both clients; the reset creates a NEW
+  identity by design and says so.
+- Host force-reveal now judges submitted lines before ending the round
+  early (was "Not judged — no score" mid-round; regression-tested).
+
 ## Deferred to platform card
 
-- Host transfer under disconnect (not exercised here; room host transfer was not
-  part of the MVP journey).
-- Reconnect mid-round with continuity cookie (partially exercised: reload keeps the
-  seat; full mid-round replay belongs to the platform matrix).
+- Host transfer under disconnect: the heartbeat self-healing path is now
+  exercised (Round 3 above); the disconnect-mid-session variant still belongs
+  to the platform matrix on t_b2f5248d.
