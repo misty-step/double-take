@@ -468,6 +468,27 @@ export const advance = mutation({
   },
 });
 
+/** Latest game for a room, for room-scoped clients. Members only. */
+export const forRoom = query({
+  args: { roomId: v.id("rooms"), guestToken: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const actor = await resolvePlayer(ctx, args.guestToken);
+    const member = await ctx.db
+      .query("roomMembers")
+      .withIndex("by_room_player", (q) =>
+        q.eq("roomId", args.roomId).eq("playerId", actor.playerId),
+      )
+      .unique();
+    if (!member || member.closedAt !== undefined) fail("NOT_A_ROOM_MEMBER", "Join the table first.");
+    const games = await ctx.db
+      .query("games")
+      .withIndex("by_room_cycle", (q) => q.eq("roomId", args.roomId))
+      .order("desc")
+      .take(1);
+    return games[0]?._id ?? null;
+  },
+});
+
 /** Viewer-safe projection. Hidden text stays hidden until the reveal. */
 export const view = query({
   args: { gameId: v.id("games"), guestToken: v.optional(v.string()) },
