@@ -508,7 +508,11 @@ function RoomGame({
                 className="button"
                 disabled={!game.host}
                 onClick={async () => {
-                  await runJudgeFlow();
+                  // Ending the round early must still score what was submitted:
+                  // one judge pass for pending lines, then the forced reveal.
+                  if (game.players.some((player) => player.submitted && !player.judged)) {
+                    await judge({ gameId, guestToken: token });
+                  }
                   const response = await beginReveal({ gameId, guestToken: token, force: true });
                   if (!response.ok && response.code !== "WRONG_PHASE")
                     setNotice({ code: response.code ?? "REVEAL_FAILED", message: response.message ?? "" });

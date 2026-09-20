@@ -321,6 +321,21 @@ describe("double take game", () => {
     expect(view.players.find((player) => player.seatIndex === 0)?.roundPoints).toBe(6);
   });
 
+  it("host force-reveal ends the round early and scores judged lines", async () => {
+    const { clients, host, gameId } = await fixture();
+    await clients[0]!.mutation(api.game.submit, { gameId, text: "A line that works in both worlds" });
+    // The client ends the round early only after judging what was submitted.
+    const judged = await host.action(api.game.judge, { gameId });
+    expect(judged).toMatchObject({ ok: true });
+    const forced = await host.mutation(api.game.beginReveal, { gameId, force: true });
+    expect(forced.ok).toBe(true);
+    const view = await host.query(api.game.view, { gameId });
+    expect(view.phase).toBe("reveal");
+    expect(view.players.find((player) => player.seatIndex === 0)?.roundPoints).toBe(6);
+    // The no-show player is revealed without a score, never a fake one.
+    expect(view.players.find((player) => player.seatIndex === 1)?.roundPoints ?? 0).toBe(0);
+  });
+
   it("refuses anonymous solo judge calls and refunds solo outage passes", async () => {
     installJudge({ a: 3, b: 3, coherence: 3, specificity: 2 });
     const t = convexTest(schema, modules);
