@@ -1,0 +1,11 @@
+# Double Take test log — 2026-09-20T17:40:40Z — rev bf866cb (branch river/mvp)
+# command: node_modules/.bin/vitest run
+
+ RUN  v5.0.0 /home/phaedrus/.hermes/kanban/workspaces/t_2f3bbf3d
+
+
+ Test Files  3 passed (3)
+      Tests  26 passed (26)
+   Start at  12:40:40
+   Duration  2.93s (tests 96%, transform 3%, import 1%)
+
