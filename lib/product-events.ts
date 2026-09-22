@@ -44,6 +44,49 @@ export type ProductEventEnvelope = Omit<ProductEventInput, "occurredAt"> & {
   schemaVersion: 1;
 };
 
+/**
+ * Exact session ids bound to both a named supervised-production run and
+ * overlapping telemetry. See docs/production-analytics-fixture-exclusions.md.
+ */
+export const KNOWN_PRODUCTION_FIXTURE_SESSION_IDS = [
+  "55fae3b9-5265-43e4-a2d4-67324f628efb",
+  "2e990248-2d03-4784-9e16-384853487f51",
+  "j97bdehgb8bd47hdb77zw3ny2x8ewn1f",
+] as const;
+
+const productionFixtureSessionIds = new Set<string>(
+  KNOWN_PRODUCTION_FIXTURE_SESSION_IDS,
+);
+
+export function partitionProductEventsForAnalytics(
+  rows: readonly ProductEventEnvelope[],
+  environment: ProductEnvironment,
+): Readonly<{
+  fixtureEvents: readonly ProductEventEnvelope[];
+  unclassifiedEvents: readonly ProductEventEnvelope[];
+  /** @deprecated This is an alias for unclassifiedEvents, not verified-human traffic. */
+  genuineEvents: readonly ProductEventEnvelope[];
+}> {
+  const fixtureEvents: ProductEventEnvelope[] = [];
+  const unclassifiedEvents: ProductEventEnvelope[] = [];
+  for (const row of rows) {
+    if (row.environment !== environment) continue;
+    if (
+      environment === "production" &&
+      productionFixtureSessionIds.has(row.sessionId)
+    ) {
+      fixtureEvents.push(row);
+    } else {
+      unclassifiedEvents.push(row);
+    }
+  }
+  return {
+    fixtureEvents,
+    unclassifiedEvents,
+    genuineEvents: unclassifiedEvents,
+  };
+}
+
 const PRIVATE_KEYS = new Set([
   "answer",
   "code",
