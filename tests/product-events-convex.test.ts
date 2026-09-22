@@ -73,38 +73,69 @@ describe("Convex product-event storage", () => {
     ).rejects.toThrow(/text/);
   });
 
-  it("excludes retained production fixtures from the operational summary", async () => {
+  it("summarizes only receipt-bound production fixtures without writing rows", async () => {
     const t = convexTest(schema, modules);
-    const fixtureSessionId = "j97bdehgb8bd47hdb77zw3ny2x8ewn1f";
-    for (const [eventId, eventSessionId] of [
-      ["double-take:v1:submission:summary-fixture", fixtureSessionId],
-      [
-        "double-take:v1:submission:summary-genuine",
-        `${fixtureSessionId}-genuine-control`,
-      ],
-    ] as const) {
+    const receiptBoundSessionIds = [
+      "55fae3b9-5265-43e4-a2d4-67324f628efb",
+      "2e990248-2d03-4784-9e16-384853487f51",
+      "j97bdehgb8bd47hdb77zw3ny2x8ewn1f",
+    ] as const;
+    const uncertainSessionIds = [
+      "003f32a7-a9eb-40e9-84d1-fa86dfc2e388",
+      "6ebee9fd-ff9c-4863-af2e-ac265bf241f8",
+      "j973mwd4yh635j5nwpmmfbe5a98exxat",
+      "d627b25a-ff94-472a-9655-45bcbfcf65b7",
+      "662f83c6-08b3-44fc-8690-9c27c460f584",
+      "j9758vn03aw0bbtjk2ttyy2tgd8exab9",
+    ] as const;
+    const productionSessionIds = [
+      ...receiptBoundSessionIds,
+      ...uncertainSessionIds,
+      `${receiptBoundSessionIds.at(-1)}-near-match`,
+      "summary-unclassified-session",
+    ];
+
+    for (const [index, eventSessionId] of productionSessionIds.entries()) {
       await t.mutation(internal.productEvents.ingest, {
-        eventId,
+        eventId: `double-take:v1:submission:summary:${index}`,
         eventName: "submission",
         environment: "production",
-        occurredAt: Date.parse("2026-09-22T15:11:22.605Z"),
+        occurredAt: Date.parse("2026-09-22T15:11:22.605Z") + index,
         sessionId: eventSessionId,
         actorId: null,
         props: { roundIndex: 1, wordCount: 8 },
       });
     }
+    await t.mutation(internal.productEvents.ingest, {
+      eventId: "double-take:v1:submission:summary:staging",
+      eventName: "submission",
+      environment: "staging",
+      occurredAt: Date.parse("2026-09-22T15:11:22.700Z"),
+      sessionId: receiptBoundSessionIds[0],
+      actorId: null,
+      props: { roundIndex: 1, wordCount: 8 },
+    });
+    const rowsBefore = await t.run((ctx) =>
+      ctx.db.query("productEvents").collect(),
+    );
 
     const summary = await t.query(internal.productEvents.summary, {
       environment: "production",
     });
+    const rowsAfter = await t.run((ctx) =>
+      ctx.db.query("productEvents").collect(),
+    );
 
     expect(summary).toEqual({
       environment: "production",
-      sampledEvents: 2,
-      fixtureEventsExcluded: 1,
-      genuineEventsRetained: 1,
+      sampledEvents: 11,
+      fixtureEventsExcluded: 3,
+      unclassifiedEventsRetained: 8,
+      genuineEventsRetained: 8,
       truncated: false,
-      eventCounts: { submission: 1 },
+      eventCounts: { submission: 8 },
     });
+    expect(rowsBefore).toHaveLength(12);
+    expect(rowsAfter).toEqual(rowsBefore);
   });
 });

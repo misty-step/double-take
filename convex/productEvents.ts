@@ -124,16 +124,19 @@ export const summary = internalQuery({
       args.environment,
     );
     const eventCounts: Record<string, number> = {};
-    for (const event of partition.genuineEvents) {
+    for (const event of partition.unclassifiedEvents) {
       eventCounts[event.eventName] = (eventCounts[event.eventName] ?? 0) + 1;
     }
+    const unclassifiedEventsRetained = partition.unclassifiedEvents.length;
     return {
       environment: args.environment,
       sampledEvents: events.filter(
         (event) => event.environment === args.environment,
       ).length,
       fixtureEventsExcluded: partition.fixtureEvents.length,
-      genuineEventsRetained: partition.genuineEvents.length,
+      unclassifiedEventsRetained,
+      // Backward-compatible alias; this does not certify human traffic.
+      genuineEventsRetained: unclassifiedEventsRetained,
       truncated: rows.length === 1_000,
       eventCounts,
     };
