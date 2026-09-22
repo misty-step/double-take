@@ -19,11 +19,7 @@ jobs:
           cache: pnpm
       - name: Install workspace
         run: pnpm install --frozen-lockfile
-      - name: Build vendored Parlor packages
-        run: pnpm build:parlor
-      - name: Typecheck
-        run: pnpm typecheck
-      - name: Tests
-        run: pnpm test
+      - name: Format, lint, typecheck, and test
+        run: pnpm check
       - name: Production build
-        run: pnpm build
+        run: pnpm build:web

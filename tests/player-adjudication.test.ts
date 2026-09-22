@@ -24,20 +24,32 @@ describe("player adjudication projection", () => {
       points: 3,
       note: "Both readings hold. The weaker one sets the points.",
     });
-    expect(JSON.stringify(result)).not.toMatch(/confidence|rubric|model|coherence|specificity/i);
+    expect(JSON.stringify(result)).not.toMatch(
+      /confidence|rubric|model|coherence|specificity/i,
+    );
   });
 
   it("fails closed when a stored level or score is outside the game contract", () => {
     expect(() =>
       toPlayerAdjudication({
-        levels: { plausibilityA: 4, plausibilityB: 2, coherence: 3, specificity: 2 },
+        levels: {
+          plausibilityA: 4,
+          plausibilityB: 2,
+          coherence: 3,
+          specificity: 2,
+        },
         points: 3,
         gateMessage: "Nope",
       }),
     ).toThrow(/plausibilityA/);
     expect(() =>
       toPlayerAdjudication({
-        levels: { plausibilityA: 2, plausibilityB: 2, coherence: 3, specificity: 2 },
+        levels: {
+          plausibilityA: 2,
+          plausibilityB: 2,
+          coherence: 3,
+          specificity: 2,
+        },
         points: Number.NaN,
         gateMessage: "Nope",
       }),

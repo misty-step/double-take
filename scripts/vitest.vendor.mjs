@@ -12,7 +12,9 @@ export default defineConfig({
     ].map((path) => ({
       test: {
         name: `parlor/${path}`,
-        root: fileURLToPath(new URL(`../vendor/parlor/${path}/`, import.meta.url)),
+        root: fileURLToPath(
+          new URL(`../vendor/parlor/${path}/`, import.meta.url),
+        ),
         include: ["test/**/*.test.{ts,tsx}"],
         environment: "node",
       },

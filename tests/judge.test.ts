@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { CALIBRATION, PAIRS, pairByKey } from "../convex/content";
-import { JudgeUnavailableError, readJudgeConfig, runAdjudication } from "../convex/judge";
+import {
+  JudgeUnavailableError,
+  readJudgeConfig,
+  runAdjudication,
+} from "../convex/judge";
 import { checkSentence, normalizeSentence } from "../convex/rules";
 
 const pair = pairByKey("vow-villain")!;
@@ -15,7 +19,12 @@ function scoreAnswer(level: number, confidence = 0.9) {
   };
 }
 
-function response(levels: { a: number; b: number; coherence: number; specificity: number }) {
+function response(levels: {
+  a: number;
+  b: number;
+  coherence: number;
+  specificity: number;
+}) {
   return {
     model: "jev-1.13-test",
     answers: {
@@ -56,13 +65,29 @@ describe("judge configuration", () => {
 
 describe("runAdjudication", () => {
   it("parses the documented score answers and composes the weaker reading", async () => {
-    const fetchMock = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
-      new Response(JSON.stringify(response({ a: 3, b: 3, coherence: 3, specificity: 2 })), {
-        status: 200,
-      }),
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify(
+            response({ a: 3, b: 3, coherence: 3, specificity: 2 }),
+          ),
+          {
+            status: 200,
+          },
+        ),
     );
-    const draft = await runAdjudication(config, pair, "I will love you until death takes me", fetchMock);
-    expect(draft.levels).toEqual({ plausibilityA: 3, plausibilityB: 3, coherence: 3, specificity: 2 });
+    const draft = await runAdjudication(
+      config,
+      pair,
+      "I will love you until death takes me",
+      fetchMock,
+    );
+    expect(draft.levels).toEqual({
+      plausibilityA: 3,
+      plausibilityB: 3,
+      coherence: 3,
+      specificity: 2,
+    });
     expect(draft.composed).toMatchObject({ weaker: 3, points: 6, gate: "ok" });
     expect(draft.rubricVersion).toBe("double-take-rubric@2");
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
@@ -81,44 +106,70 @@ describe("runAdjudication", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response("busy", { status: 429 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(response({ a: 2, b: 2, coherence: 2, specificity: 2 })), { status: 200 }));
-    const draft = await runAdjudication(config, pair, "Tonight we feast on what remains", fetchMock);
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            response({ a: 2, b: 2, coherence: 2, specificity: 2 }),
+          ),
+          { status: 200 },
+        ),
+      );
+    const draft = await runAdjudication(
+      config,
+      pair,
+      "Tonight we feast on what remains",
+      fetchMock,
+    );
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(draft.composed.points).toBe(3);
   });
 
   it("fails closed after repeated overload", async () => {
     const fetchMock = vi.fn(async () => new Response("busy", { status: 529 }));
-    await expect(runAdjudication(config, pair, "Some line", fetchMock)).rejects.toMatchObject({
+    await expect(
+      runAdjudication(config, pair, "Some line", fetchMock),
+    ).rejects.toMatchObject({
       code: "JUDGE_HTTP_529",
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("fails closed on unreadable or mistyped answers", async () => {
-    const notJson = vi.fn(async () => new Response("<html>gateway</html>", { status: 200 }));
-    await expect(runAdjudication(config, pair, "Some line", notJson)).rejects.toMatchObject({
+    const notJson = vi.fn(
+      async () => new Response("<html>gateway</html>", { status: 200 }),
+    );
+    await expect(
+      runAdjudication(config, pair, "Some line", notJson),
+    ).rejects.toMatchObject({
       code: "JUDGE_BAD_RESPONSE",
     });
-    const wrongType = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          model: "x",
-          answers: { plausibility_a: { type: "noul", noul: 0.9 }, plausibility_b: {}, coherence: {}, specificity: {} },
-        }),
-        { status: 200 },
-      ),
+    const wrongType = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: "x",
+            answers: {
+              plausibility_a: { type: "noul", noul: 0.9 },
+              plausibility_b: {},
+              coherence: {},
+              specificity: {},
+            },
+          }),
+          { status: 200 },
+        ),
     );
-    await expect(runAdjudication(config, pair, "Some line", wrongType)).rejects.toBeInstanceOf(
-      JudgeUnavailableError,
-    );
+    await expect(
+      runAdjudication(config, pair, "Some line", wrongType),
+    ).rejects.toBeInstanceOf(JudgeUnavailableError);
   });
 
   it("fails closed on network errors", async () => {
     const fetchMock = vi.fn(async () => {
       throw new TypeError("fetch failed");
     });
-    await expect(runAdjudication(config, pair, "Some line", fetchMock)).rejects.toMatchObject({
+    await expect(
+      runAdjudication(config, pair, "Some line", fetchMock),
+    ).rejects.toMatchObject({
       code: "JUDGE_NETWORK",
     });
   });
@@ -153,7 +204,9 @@ describe("calibration deck integrity", () => {
   });
 
   it("uses every calibration sentence exactly once, normalized", () => {
-    const seen = new Set(CALIBRATION.map((example) => normalizeSentence(example.sentence)));
+    const seen = new Set(
+      CALIBRATION.map((example) => normalizeSentence(example.sentence)),
+    );
     expect(seen.size).toBe(CALIBRATION.length);
   });
 
@@ -163,8 +216,11 @@ describe("calibration deck integrity", () => {
     // (the 13-word letter-fineprint original failed exactly here).
     for (const example of CALIBRATION) {
       const check = checkSentence(example.sentence);
-      expect({ sentence: example.sentence, ok: check.ok, code: check.ok ? null : check.code })
-        .toEqual({ sentence: example.sentence, ok: true, code: null });
+      expect({
+        sentence: example.sentence,
+        ok: check.ok,
+        code: check.ok ? null : check.code,
+      }).toEqual({ sentence: example.sentence, ok: true, code: null });
     }
   });
 });

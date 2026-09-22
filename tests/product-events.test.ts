@@ -35,19 +35,42 @@ describe("product event contract", () => {
 
   it("accepts every canonical Double Take event shape", () => {
     const events: ProductEventInput[] = [
-      { ...base, eventName: "session_start", props: { mode: "match", newVisitor: true } },
-      { ...base, eventName: "round_start", props: { roundIndex: 1, contextPairId: "vow-villain" } },
-      { ...base, eventName: "submission", props: { roundIndex: 1, wordCount: 8 } },
+      {
+        ...base,
+        eventName: "session_start",
+        props: { mode: "match", newVisitor: true },
+      },
+      {
+        ...base,
+        eventName: "round_start",
+        props: { roundIndex: 1, contextPairId: "vow-villain" },
+      },
+      {
+        ...base,
+        eventName: "submission",
+        props: { roundIndex: 1, wordCount: 8 },
+      },
       {
         ...base,
         eventName: "judgment",
-        props: { roundIndex: 1, coherence: "pass", specificity: "pass", refused: false },
+        props: {
+          roundIndex: 1,
+          coherence: "pass",
+          specificity: "pass",
+          refused: false,
+        },
       },
-      { ...base, eventName: "round_complete", props: { roundIndex: 1, score: 3 } },
+      {
+        ...base,
+        eventName: "round_complete",
+        props: { roundIndex: 1, score: 3 },
+      },
       { ...base, eventName: "replay", props: { fromRound: 3 } },
     ];
 
-    expect(events.map(buildProductEvent).map((event) => event.eventName)).toEqual([
+    expect(
+      events.map(buildProductEvent).map((event) => event.eventName),
+    ).toEqual([
       "session_start",
       "round_start",
       "submission",
@@ -58,8 +81,12 @@ describe("product event contract", () => {
   });
 
   it("rejects unknown environments, missing props, and player content", () => {
-    expect(() => parseProductEnvironment(undefined)).toThrow(/PRODUCT_ENVIRONMENT/);
-    expect(() => parseProductEnvironment("preview")).toThrow(/PRODUCT_ENVIRONMENT/);
+    expect(() => parseProductEnvironment(undefined)).toThrow(
+      /PRODUCT_ENVIRONMENT/,
+    );
+    expect(() => parseProductEnvironment("preview")).toThrow(
+      /PRODUCT_ENVIRONMENT/,
+    );
     expect(() =>
       buildProductEvent({
         ...base,
@@ -71,7 +98,11 @@ describe("product event contract", () => {
       buildProductEvent({
         ...base,
         eventName: "submission",
-        props: { roundIndex: 1, wordCount: 3, sentence: "secret player copy" } as never,
+        props: {
+          roundIndex: 1,
+          wordCount: 3,
+          sentence: "secret player copy",
+        } as never,
       }),
     ).toThrow(/sentence/);
   });
@@ -81,7 +112,12 @@ describe("product event contract", () => {
       buildProductEvent({
         ...base,
         eventName: "judgment",
-        props: { roundIndex: 1, coherence: "fail", specificity: "fail", refused: true },
+        props: {
+          roundIndex: 1,
+          coherence: "fail",
+          specificity: "fail",
+          refused: true,
+        },
       } as ProductEventInput),
     ).toThrow(/refuseReason/);
     expect(() =>

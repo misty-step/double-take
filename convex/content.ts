@@ -13,11 +13,13 @@ export const PAIRS: Pair[] = [
     title: "Vow or threat",
     contextA: {
       label: "Wedding vow",
-      setting: "Said aloud at the altar, holding your partner's hands, after ten years together.",
+      setting:
+        "Said aloud at the altar, holding your partner's hands, after ten years together.",
     },
     contextB: {
       label: "Villain monologue",
-      setting: "Said to the hero you have finally cornered, cape settling, plan complete.",
+      setting:
+        "Said to the hero you have finally cornered, cape settling, plan complete.",
     },
     note: "The canonical calibration pair.",
   },
@@ -26,11 +28,13 @@ export const PAIRS: Pair[] = [
     title: "Goodnight, over",
     contextA: {
       label: "Parent at bedtime",
-      setting: "Whispered at the edge of a child's bed, lights low, third glass of water requested.",
+      setting:
+        "Whispered at the edge of a child's bed, lights low, third glass of water requested.",
     },
     contextB: {
       label: "Flight controller",
-      setting: "Spoken calmly over the radio to a pilot on final approach in bad weather.",
+      setting:
+        "Spoken calmly over the radio to a pilot on final approach in bad weather.",
     },
   },
   {
@@ -38,11 +42,13 @@ export const PAIRS: Pair[] = [
     title: "Hard news",
     contextA: {
       label: "Veterinarian to a nervous dog",
-      setting: "Low, calm voice in an exam room; the dog is shaking on the steel table.",
+      setting:
+        "Low, calm voice in an exam room; the dog is shaking on the steel table.",
     },
     contextB: {
       label: "Manager in a review meeting",
-      setting: "Serious voice across a conference table; the quarter did not go well.",
+      setting:
+        "Serious voice across a conference table; the quarter did not go well.",
     },
   },
   {
@@ -54,7 +60,8 @@ export const PAIRS: Pair[] = [
     },
     contextB: {
       label: "Contract fine print",
-      setting: "Grey text at the bottom of a long agreement, next to the signature line.",
+      setting:
+        "Grey text at the bottom of a long agreement, next to the signature line.",
     },
   },
   {
@@ -62,11 +69,13 @@ export const PAIRS: Pair[] = [
     title: "Locker room, quiet room",
     contextA: {
       label: "Coach before the final",
-      setting: "Locker room at halftime, chalk dust in the air, a season on the line.",
+      setting:
+        "Locker room at halftime, chalk dust in the air, a season on the line.",
     },
     contextB: {
       label: "Grief counselor",
-      setting: "Quiet office, box of tissues on the side table, a long silence just ended.",
+      setting:
+        "Quiet office, box of tissues on the side table, a long silence just ended.",
     },
   },
   {
@@ -90,7 +99,8 @@ export const PAIRS: Pair[] = [
     },
     contextB: {
       label: "Spoken incantation",
-      setting: "Old words by candlelight, a circle of salt, something about to arrive.",
+      setting:
+        "Old words by candlelight, a circle of salt, something about to arrive.",
     },
   },
   {
@@ -102,7 +112,8 @@ export const PAIRS: Pair[] = [
     },
     contextB: {
       label: "Note under a windshield wiper",
-      setting: "Rushed handwriting on a napkin, left after a parking-lot scrape.",
+      setting:
+        "Rushed handwriting on a napkin, left after a parking-lot scrape.",
     },
   },
   {
@@ -122,11 +133,13 @@ export const PAIRS: Pair[] = [
     title: "Still here",
     contextA: {
       label: "Lighthouse keeper's log",
-      setting: "Ink on a weather-stained page, storm season, nobody else for miles.",
+      setting:
+        "Ink on a weather-stained page, storm season, nobody else for miles.",
     },
     contextB: {
       label: "Late-night voicemail to an old friend",
-      setting: "Talking to an answering machine because calling felt better than sleeping.",
+      setting:
+        "Talking to an answering machine because calling felt better than sleeping.",
     },
   },
 ];
@@ -157,49 +170,89 @@ export const CALIBRATION: CalibrationExample[] = [
   {
     pairKey: "vow-villain",
     sentence: "I will love you until death takes me",
-    expected: { plausibilityA: 3, plausibilityB: 2, coherence: 3, specificity: 2 },
+    expected: {
+      plausibilityA: 3,
+      plausibilityB: 2,
+      coherence: 3,
+      specificity: 2,
+    },
     note: "Classic double reading; both framings hold without changing a word. The villain borrows the vow's idiom — natural there, not native. Live judge read B Impossible under rubric@1, Strained under rubric@2; recorded divergence, docs/calibration.md.",
   },
   {
     pairKey: "vow-villain",
     sentence: "You will never escape me now",
-    expected: { plausibilityA: 1, plausibilityB: 3, coherence: 2, specificity: 2 },
+    expected: {
+      plausibilityA: 1,
+      plausibilityB: 3,
+      coherence: 2,
+      specificity: 2,
+    },
     note: "A threat at home in the monologue; as a vow it is a possessive promise — strained, not impossible. Calibrates the one-point floor. Live judge agrees (A1, stable across rubric versions).",
   },
   {
     pairKey: "vow-villain",
     sentence: "I promise to stay, and you will regret this",
-    expected: { plausibilityA: 2, plausibilityB: 2, coherence: 0, specificity: 2 },
+    expected: {
+      plausibilityA: 2,
+      plausibilityB: 2,
+      coherence: 0,
+      specificity: 2,
+    },
     note: "Two stitched halves; the comma cannot hide two different speakers. Expected levels express that each half works somewhere; judged whole-in-context the halves collapse (live A1/B2 under rubric@2) and the stitched gate dominates either way.",
   },
   {
     pairKey: "vet-boss",
     sentence: "This will only hurt for a moment",
-    expected: { plausibilityA: 3, plausibilityB: 2, coherence: 3, specificity: 2 },
+    expected: {
+      plausibilityA: 3,
+      plausibilityB: 2,
+      coherence: 3,
+      specificity: 2,
+    },
     note: "Kind to a dog, cold from a manager; earns the weaker reading. The bedside register stumbles in a conference room, yet managers do say exactly this — the semantics straddle Strained and Natural, and so does the live judge (rubric@2: B1 thrice, B2 once). Deck keeps Natural as authored intent.",
   },
   {
     pairKey: "vet-boss",
     sentence: "We need to talk",
-    expected: { plausibilityA: 2, plausibilityB: 3, coherence: 3, specificity: 0 },
+    expected: {
+      plausibilityA: 2,
+      plausibilityB: 3,
+      coherence: 3,
+      specificity: 0,
+    },
     note: "Fits everything; the specificity gate must zero it. The boss side is the stock idiom of the bad-news meeting; the dog side stumbles (talking to a creature that cannot talk). Live: A1/B3 across rubrics, gate unchanged.",
   },
   {
     pairKey: "orbit-hold",
     sentence: "Please hold, your call matters to us",
-    expected: { plausibilityA: 0, plausibilityB: 3, coherence: 3, specificity: 1 },
+    expected: {
+      plausibilityA: 0,
+      plausibilityB: 3,
+      coherence: 3,
+      specificity: 1,
+    },
     note: "A perfect hold message that nobody would transmit from a dying capsule. One sentence, not stitching — both halves serve the hold context. The live judge still calls it stitched under rubric@2 (residual comma bias); the outcome is zero either way.",
   },
   {
     pairKey: "menu-spell",
     sentence: "Tonight we feast on what remains",
-    expected: { plausibilityA: 2, plausibilityB: 2, coherence: 3, specificity: 2 },
+    expected: {
+      plausibilityA: 2,
+      plausibilityB: 2,
+      coherence: 3,
+      specificity: 2,
+    },
     note: "Works as a harvest menu and as an incantation — poetic in both registers, native to neither. Natural on both sides; the live judge agrees (A2/B2, stable across rubrics and the release-day probe).",
   },
   {
     pairKey: "letter-fineprint",
     sentence: "You agree to everything the moment you open this",
-    expected: { plausibilityA: 1, plausibilityB: 3, coherence: 2, specificity: 2 },
+    expected: {
+      plausibilityA: 1,
+      plausibilityB: 3,
+      coherence: 2,
+      specificity: 2,
+    },
     note: "Fine print at home: opening seals the agreement. A love letter strains it into a presumptuous ultimatum — one point survives. Replaces the unplayable 13-word original (over the twelve-word cap); live rubric@2 reads A1/B3, 4/4 repeats.",
   },
 ];

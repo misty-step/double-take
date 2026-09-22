@@ -6,25 +6,50 @@ import { useHeartbeat } from "@parlor/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { PAIRS, pairByKey } from "../convex/content";
-import { MAX_SUBMISSIONS_PER_ROUND, MAX_WORDS, wordCount } from "../convex/rules";
+import {
+  MAX_SUBMISSIONS_PER_ROUND,
+  MAX_WORDS,
+  wordCount,
+} from "../convex/rules";
 import type { PlayerAdjudication } from "../lib/player-adjudication";
+import {
+  SEAT_RECOVERY_UNAVAILABLE,
+  SEAT_RESET_UNAVAILABLE,
+  TABLE_ACTION_UNAVAILABLE,
+  TABLE_SCORING_UNAVAILABLE,
+  practiceFailureCopy,
+} from "../lib/player-copy";
 import { showsGameTable } from "../lib/room-view";
 import { useGuest, resetIssuer } from "../app/providers";
 
 type RoomId = Id<"rooms">;
 type GameId = Id<"games">;
+const ROOM_STORAGE_KEY = "double-take:room";
 
-const READING_NAMES = ["Doesn’t land", "A stretch", "Reads naturally", "Lands perfectly"] as const;
+const READING_NAMES = [
+  "Doesn’t land",
+  "A stretch",
+  "Reads naturally",
+  "Lands perfectly",
+] as const;
 
 function formatPoints(points: number): string {
   return `${points} ${points === 1 ? "pt" : "pts"}`;
 }
 
-export function ImpressionMark({ size = "small" }: { size?: "small" | "large" }) {
+export function ImpressionMark({
+  size = "small",
+}: {
+  size?: "small" | "large";
+}) {
   return (
     <img
       className={`impression-mark impression-mark-${size}`}
-      src={size === "small" ? "/brand/double-take-mark-32.svg" : "/brand/double-take-mark.svg"}
+      src={
+        size === "small"
+          ? "/brand/double-take-mark-32.svg"
+          : "/brand/double-take-mark.svg"
+      }
       width={size === "small" ? 32 : 128}
       height={size === "small" ? 32 : 128}
       alt=""
@@ -46,12 +71,20 @@ export function BrandHeader() {
 function useSound() {
   const [enabled, setEnabled] = useState(false);
   useEffect(() => {
-    setEnabled(window.localStorage.getItem("double-take:sound") === "on");
+    try {
+      setEnabled(window.localStorage.getItem("double-take:sound") === "on");
+    } catch {
+      // Sound remains off when this browser blocks local storage.
+    }
   }, []);
   const toggle = useCallback(() => {
     setEnabled((current) => {
       const next = !current;
-      window.localStorage.setItem("double-take:sound", next ? "on" : "off");
+      try {
+        window.localStorage.setItem("double-take:sound", next ? "on" : "off");
+      } catch {
+        // Sound still works for this view even when preferences cannot persist.
+      }
       return next;
     });
   }, []);
@@ -59,7 +92,10 @@ function useSound() {
     (high: boolean) => {
       if (!enabled) return;
       try {
-        const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        const Ctor =
+          window.AudioContext ??
+          (window as unknown as { webkitAudioContext?: typeof AudioContext })
+            .webkitAudioContext;
         if (!Ctor) return;
         const ctx = new Ctor();
         const osc = ctx.createOscillator();
@@ -92,7 +128,11 @@ export function RevealStage({
   stage: "a" | "b";
 }) {
   return (
-    <div className={stage === "a" ? "impression first fade-in" : "impression second fade-in"}>
+    <div
+      className={
+        stage === "a" ? "impression first fade-in" : "impression second fade-in"
+      }
+    >
       <div className="reading-context">
         <span>{stage === "a" ? "First impression" : "Second impression"}</span>
         <strong>{label}</strong>
@@ -103,15 +143,21 @@ export function RevealStage({
   );
 }
 
-export function ScoreSummary({ adjudication }: { adjudication: PlayerAdjudication }) {
+export function ScoreSummary({
+  adjudication,
+}: {
+  adjudication: PlayerAdjudication;
+}) {
   return (
     <div className="score-summary">
       <div className="reading-scores">
         <span>
-          <i className="ink-dot red" />First <strong>{READING_NAMES[adjudication.readings.first]}</strong>
+          <i className="ink-dot red" />
+          First <strong>{READING_NAMES[adjudication.readings.first]}</strong>
         </span>
         <span>
-          <i className="ink-dot blue" />Second <strong>{READING_NAMES[adjudication.readings.second]}</strong>
+          <i className="ink-dot blue" />
+          Second <strong>{READING_NAMES[adjudication.readings.second]}</strong>
         </span>
       </div>
       <div className="score-verdict">
@@ -125,7 +171,11 @@ export function ScoreSummary({ adjudication }: { adjudication: PlayerAdjudicatio
 export function PairCards({
   pair,
 }: {
-  pair: { title: string; contextA: { label: string; setting: string }; contextB: { label: string; setting: string } };
+  pair: {
+    title: string;
+    contextA: { label: string; setting: string };
+    contextB: { label: string; setting: string };
+  };
 }) {
   return (
     <section className="card pair-card">
@@ -150,7 +200,6 @@ export function PairCards({
 }
 
 function Writer({
-  pairKey,
   onSubmit,
   disabled,
   busy,
@@ -158,8 +207,9 @@ function Writer({
   initialText = "",
   submitLabel = "Print my line",
 }: {
-  pairKey: string;
-  onSubmit: (text: string) => Promise<{ ok: boolean; code?: string; message?: string }>;
+  onSubmit: (
+    text: string,
+  ) => Promise<{ ok: boolean; code?: string; message?: string }>;
   disabled: boolean;
   busy: boolean;
   hint?: string;
@@ -177,7 +227,7 @@ function Writer({
         event.preventDefault();
         setError(null);
         const result = await onSubmit(text);
-        if (!result.ok) setError(result.message ?? result.code ?? "That did not land.");
+        if (!result.ok) setError(result.message ?? TABLE_ACTION_UNAVAILABLE);
       }}
     >
       <label htmlFor="line" className="small muted">
@@ -208,18 +258,29 @@ function Writer({
   );
 }
 
-function SoloPractice({ onExit }: { onExit: () => void }) {
+function SoloPractice({
+  sessionId,
+  onExit,
+}: {
+  sessionId: string;
+  onExit: () => void;
+}) {
   const guest = useGuest();
   const judge = useAction(api.solo.judge);
   const sound = useSound();
-  const [pairIndex, setPairIndex] = useState(() => Math.floor(Math.random() * PAIRS.length));
+  const [pairIndex, setPairIndex] = useState(() =>
+    Math.floor(Math.random() * PAIRS.length),
+  );
   const pair = PAIRS[pairIndex]!;
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<null | (PlayerAdjudication & { text: string })>(null);
-  const [failure, setFailure] = useState<null | { code: string; message: string }>(null);
+  const [result, setResult] = useState<
+    null | (PlayerAdjudication & { text: string })
+  >(null);
   const [stage, setStage] = useState<"a" | "b">("a");
+  const [roundIndex, setRoundIndex] = useState(1);
 
-  if (!guest.credential) return <div className="card">Setting up your seat…</div>;
+  if (!guest.credential)
+    return <div className="card">Setting up your seat…</div>;
   const token = guest.credential;
 
   return (
@@ -233,16 +294,16 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
       <PairCards pair={pair} />
       {!result && (
         <Writer
-          pairKey={pair.key}
           busy={busy}
           disabled={false}
           onSubmit={async (text) => {
             setBusy(true);
-            setFailure(null);
             try {
               const response = await judge({
                 sentence: text,
                 pairKey: pair.key,
+                sessionId,
+                roundIndex,
                 guestToken: token,
               });
               if (response.ok && response.result) {
@@ -251,16 +312,18 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
                 sound.chime(true);
                 return { ok: true };
               }
-              setFailure({ code: response.code ?? "JUDGE_UNAVAILABLE", message: response.message ?? "Nothing was scored." });
-              return { ok: false, code: response.code, message: response.message };
+              return {
+                ok: false,
+                code: response.code,
+                message: practiceFailureCopy(response.code),
+              };
+            } catch {
+              return { ok: false, message: practiceFailureCopy() };
             } finally {
               setBusy(false);
             }
           }}
         />
-      )}
-      {failure && (
-        <div className="error">{failure.message} Nothing was scored. Try again when the press is ready.</div>
       )}
       {result && (
         <div className="card">
@@ -269,7 +332,9 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
             text={result.text}
             stage={stage}
             label={stage === "a" ? pair.contextA.label : pair.contextB.label}
-            setting={stage === "a" ? pair.contextA.setting : pair.contextB.setting}
+            setting={
+              stage === "a" ? pair.contextA.setting : pair.contextB.setting
+            }
           />
           <div className="button-row" style={{ marginTop: "0.75rem" }}>
             {stage === "a" ? (
@@ -295,6 +360,7 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
             <button
               className="button ghost"
               onClick={() => {
+                setRoundIndex((round) => round + 1);
                 setResult(null);
                 setStage("a");
               }}
@@ -304,6 +370,7 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
             <button
               className="button ghost"
               onClick={() => {
+                setRoundIndex((round) => round + 1);
                 setPairIndex((index) => (index + 1) % PAIRS.length);
                 setResult(null);
                 setStage("a");
@@ -343,7 +410,10 @@ function RoomGame({
   const start = useMutation(api.game.start);
   const sound = useSound();
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<null | { code: string; message: string }>(null);
+  const [notice, setNotice] = useState<null | {
+    code: string;
+    message: string;
+  }>(null);
   const [stage, setStage] = useState<"a" | "b">("a");
   const requestRef = useRef(crypto.randomUUID());
   const judgeRef = useRef(false);
@@ -356,31 +426,49 @@ function RoomGame({
   }, []);
 
   const game = view;
-  const pair = useMemo(() => (game ? pairByKey(game.pair.key) : undefined), [game]);
+  const pair = useMemo(
+    () => (game ? pairByKey(game.pair.key) : undefined),
+    [game],
+  );
 
   const runJudgeFlow = useCallback(async () => {
     if (!game || game.phase !== "writing" || judgeRef.current) return;
     const deadlinePassed = Date.now() > game.deadline;
     const allSubmitted = game.players.every((player) => player.submitted);
     const allJudged = game.players.every((player) => player.judged);
-    const pendingJudgable = game.players.some((player) => player.submitted && !player.judged);
+    const pendingJudgable = game.players.some(
+      (player) => player.submitted && !player.judged,
+    );
     if (pendingJudgable && (allSubmitted || deadlinePassed)) {
       judgeRef.current = true;
       try {
         const response = await judge({ gameId, guestToken: token });
         if (!response.ok && response.code !== "JUDGE_UNCONFIGURED")
-          setNotice({ code: response.code ?? "JUDGE_UNAVAILABLE", message: response.message ?? "Nothing was scored." });
+          setNotice({
+            code: response.code ?? "JUDGE_UNAVAILABLE",
+            message: TABLE_SCORING_UNAVAILABLE,
+          });
         else if (response.ok) setNotice(null);
       } finally {
         judgeRef.current = false;
       }
-    } else if ((allSubmitted && allJudged) || (deadlinePassed && !pendingJudgable)) {
+    } else if (
+      (allSubmitted && allJudged) ||
+      (deadlinePassed && !pendingJudgable)
+    ) {
       // The round closes on its own clock: no-shows cannot hold the table.
       judgeRef.current = true;
       try {
         const response = await beginReveal({ gameId, guestToken: token });
-        if (!response.ok && response.code !== "WRONG_PHASE" && response.code !== "NOT_READY")
-          setNotice({ code: response.code ?? "REVEAL_FAILED", message: response.message ?? "" });
+        if (
+          !response.ok &&
+          response.code !== "WRONG_PHASE" &&
+          response.code !== "NOT_READY"
+        )
+          setNotice({
+            code: response.code ?? "REVEAL_FAILED",
+            message: TABLE_ACTION_UNAVAILABLE,
+          });
       } finally {
         judgeRef.current = false;
       }
@@ -404,7 +492,10 @@ function RoomGame({
   if (!game || !pair) return <div className="card">Dealing you in…</div>;
 
   const mine = game.me.submission;
-  const secondsLeft = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
+  const secondsLeft = Math.max(
+    0,
+    Math.ceil((game.deadline - Date.now()) / 1000),
+  );
   const timeUp = secondsLeft === 0;
   const revisionsLeft = MAX_SUBMISSIONS_PER_ROUND - (mine?.revision ?? 0);
   const allJudged = game.players.every((player) => player.judged);
@@ -419,16 +510,13 @@ function RoomGame({
           Leave table
         </button>
       </div>
-      {notice && (
-        <div className="error">{notice.message} Nothing was scored. Try again when the press is ready.</div>
-      )}
+      {notice && <div className="error">{notice.message}</div>}
       {game.phase === "writing" && (
         <>
           <PairCards pair={pair} />
           {game.me.seated ? (
             <Writer
               key={mine?.revision ?? 0}
-              pairKey={pair.key}
               busy={busy}
               disabled={timeUp || revisionsLeft === 0}
               initialText={mine?.text ?? ""}
@@ -445,7 +533,11 @@ function RoomGame({
               onSubmit={async (text) => {
                 setBusy(true);
                 try {
-                  const response = await submit({ gameId, text, guestToken: token });
+                  const response = await submit({
+                    gameId,
+                    text,
+                    guestToken: token,
+                  });
                   return response;
                 } finally {
                   setBusy(false);
@@ -455,8 +547,8 @@ function RoomGame({
           ) : (
             <div className="card">
               <p className="small muted">
-                You joined while this match was running. Watch the round — you are dealt in
-                when the next match starts.
+                You joined while this match was running. Watch the round — you
+                are dealt in when the next match starts.
               </p>
             </div>
           )}
@@ -483,7 +575,8 @@ function RoomGame({
               ))}
             </div>
             <p className="small muted">
-              Other lines stay hidden until the reveal. {timeUp ? "Time is up — the round is closing." : ""}
+              Other lines stay hidden until the reveal.{" "}
+              {timeUp ? "Time is up — the round is closing." : ""}
             </p>
             <div className="button-row">
               <button
@@ -492,12 +585,23 @@ function RoomGame({
                 onClick={async () => {
                   // Ending the round early must still score what was submitted:
                   // one judge pass for pending lines, then the forced reveal.
-                  if (game.players.some((player) => player.submitted && !player.judged)) {
+                  if (
+                    game.players.some(
+                      (player) => player.submitted && !player.judged,
+                    )
+                  ) {
                     await judge({ gameId, guestToken: token });
                   }
-                  const response = await beginReveal({ gameId, guestToken: token, force: true });
+                  const response = await beginReveal({
+                    gameId,
+                    guestToken: token,
+                    force: true,
+                  });
                   if (!response.ok && response.code !== "WRONG_PHASE")
-                    setNotice({ code: response.code ?? "REVEAL_FAILED", message: response.message ?? "" });
+                    setNotice({
+                      code: response.code ?? "REVEAL_FAILED",
+                      message: TABLE_ACTION_UNAVAILABLE,
+                    });
                 }}
               >
                 Reveal now (host)
@@ -535,8 +639,12 @@ function RoomGame({
               <RevealStage
                 text={mine.text}
                 stage={stage}
-                label={stage === "a" ? pair.contextA.label : pair.contextB.label}
-                setting={stage === "a" ? pair.contextA.setting : pair.contextB.setting}
+                label={
+                  stage === "a" ? pair.contextA.label : pair.contextB.label
+                }
+                setting={
+                  stage === "a" ? pair.contextA.setting : pair.contextB.setting
+                }
               />
               <div className="button-row" style={{ marginTop: "0.5rem" }}>
                 {stage === "a" ? (
@@ -563,16 +671,18 @@ function RoomGame({
                 <div className="row">
                   <strong>{item.name}</strong>
                   {item.adjudication && (
-                    <span className="points">{formatPoints(item.adjudication.points)}</span>
+                    <span className="points">
+                      {formatPoints(item.adjudication.points)}
+                    </span>
                   )}
                 </div>
-                <p className="submission-line">
-                  “{item.text}”
-                </p>
+                <p className="submission-line">“{item.text}”</p>
                 {item.adjudication ? (
                   <ScoreSummary adjudication={item.adjudication} />
                 ) : (
-                  <p className="small muted">Not judged — no score is shown for a missing judgment.</p>
+                  <p className="small muted">
+                    Not judged — no score is shown for a missing judgment.
+                  </p>
                 )}
               </div>
             ))}
@@ -585,7 +695,10 @@ function RoomGame({
                 onClick={async () => {
                   const response = await advance({ gameId, guestToken: token });
                   if (!response.ok)
-                    setNotice({ code: response.code ?? "ADVANCE_FAILED", message: response.message ?? "" });
+                    setNotice({
+                      code: response.code ?? "ADVANCE_FAILED",
+                      message: TABLE_ACTION_UNAVAILABLE,
+                    });
                 }}
               >
                 {game.round >= game.rounds ? "Finish the table" : "Next round"}
@@ -599,12 +712,15 @@ function RoomGame({
                   setBusy(true);
                   try {
                     requestRef.current = crypto.randomUUID();
-                    await start({ roomId, requestId: requestRef.current, guestToken: token });
-                  } catch (error) {
+                    await start({
+                      roomId,
+                      requestId: requestRef.current,
+                      guestToken: token,
+                    });
+                  } catch {
                     setNotice({
                       code: "START_FAILED",
-                      message:
-                        error instanceof Error ? error.message : "The table did not start.",
+                      message: TABLE_ACTION_UNAVAILABLE,
                     });
                   } finally {
                     setBusy(false);
@@ -621,7 +737,15 @@ function RoomGame({
   );
 }
 
-function Room({ roomId, token, onExit }: { roomId: RoomId; token: string; onExit: () => void }) {
+function Room({
+  roomId,
+  token,
+  onExit,
+}: {
+  roomId: RoomId;
+  token: string;
+  onExit: () => void;
+}) {
   const state = useQuery(api.rooms.getRoomState, { roomId, guestToken: token });
   const brief = useQuery(api.game.forRoom, { roomId, guestToken: token });
   const start = useMutation(api.game.start);
@@ -659,22 +783,33 @@ function Room({ roomId, token, onExit }: { roomId: RoomId; token: string; onExit
                 {member.displayName}
                 {member.playerId === state.room.hostPlayerId ? " · host" : ""}
               </span>
-              {member.playerId === state.viewerPlayerId && <span className="pill">you</span>}
+              {member.playerId === state.viewerPlayerId && (
+                <span className="pill">you</span>
+              )}
             </div>
           ))}
         </div>
         <p className="small muted">
-          Share the code <strong>{state.room.code}</strong>. Everyone plays on their own phone.
+          Share the code <strong>{state.room.code}</strong>. Everyone plays on
+          their own phone.
         </p>
       </div>
       {notice && <div className="error">{notice}</div>}
-      {gameId !== null && showsGameTable(active !== null, brief?.phase ?? null) ? (
-        <RoomGame key={gameId} roomId={roomId} gameId={gameId} token={token} onExit={onExit} />
+      {gameId !== null &&
+      showsGameTable(active !== null, brief?.phase ?? null) ? (
+        <RoomGame
+          key={gameId}
+          roomId={roomId}
+          gameId={gameId}
+          token={token}
+          onExit={onExit}
+        />
       ) : (
         <div className="card">
           <h2>Ready when you are</h2>
           <p className="small muted">
-            Two to twelve players · three rounds · the weaker impression sets the score.
+            Two to twelve players · three rounds · the weaker impression sets
+            the score.
           </p>
           <button
             className="button primary"
@@ -683,9 +818,13 @@ function Room({ roomId, token, onExit }: { roomId: RoomId; token: string; onExit
               setBusy(true);
               setNotice(null);
               try {
-                await start({ roomId, requestId: requestRef.current, guestToken: token });
-              } catch (error) {
-                setNotice(error instanceof Error ? error.message : "The table did not start.");
+                await start({
+                  roomId,
+                  requestId: requestRef.current,
+                  guestToken: token,
+                });
+              } catch {
+                setNotice(TABLE_ACTION_UNAVAILABLE);
               } finally {
                 setBusy(false);
               }
@@ -712,13 +851,46 @@ function Entrance({
 }) {
   const create = useMutation(api.rooms.createRoom);
   const join = useMutation(api.rooms.joinRoom);
+  const startSession = useMutation(api.productEvents.startSession);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [mode, setMode] = useState<"none" | "create" | "join" | "solo">("none");
+  const [soloSessionId, setSoloSessionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (mode === "solo") return <SoloPractice onExit={() => setMode("none")} />;
+  const recordSession = useCallback(
+    (sessionMode: "match" | "solo") => {
+      const sessionId = crypto.randomUUID();
+      let newVisitor = false;
+      try {
+        const visitorKey = "double-take:visited";
+        newVisitor = window.localStorage.getItem(visitorKey) === null;
+        window.localStorage.setItem(visitorKey, "1");
+      } catch {
+        // Storage is optional; an explicit anonymous session still records the loop.
+      }
+      void startSession({
+        sessionId,
+        mode: sessionMode,
+        newVisitor,
+        guestToken: token,
+      }).catch(() => undefined);
+      return sessionId;
+    },
+    [startSession, token],
+  );
+
+  if (mode === "solo" && soloSessionId)
+    return (
+      <SoloPractice
+        sessionId={soloSessionId}
+        onExit={() => {
+          setSoloSessionId(null);
+          setMode("none");
+        }}
+      />
+    );
 
   return (
     <div className="entrance">
@@ -726,14 +898,21 @@ function Entrance({
         <div className="hero-copy">
           <div className="section-kicker">A two-reading party game</div>
           <h1>
-            One line.<br />
+            One line.
+            <br />
             <span>Two impressions.</span>
           </h1>
           <p className="hero-lede">
             Make the same words read true in two completely different scenes.
           </p>
           <div className="button-row entrance-actions">
-            <button className="button primary" onClick={() => setMode("solo")}>
+            <button
+              className="button primary"
+              onClick={() => {
+                setSoloSessionId(recordSession("solo"));
+                setMode("solo");
+              }}
+            >
               Practice
             </button>
             <button className="button" onClick={() => setMode("create")}>
@@ -754,9 +933,18 @@ function Entrance({
           Say it twice <span>How to play</span>
         </summary>
         <div className="rule-steps">
-          <p><b>01</b><span>Read the two scenes.</span></p>
-          <p><b>02</b><span>Write one sentence that belongs in both.</span></p>
-          <p><b>03</b><span>Reveal both impressions. The weaker one sets the score.</span></p>
+          <p>
+            <b>01</b>
+            <span>Read the two scenes.</span>
+          </p>
+          <p>
+            <b>02</b>
+            <span>Write one sentence that belongs in both.</span>
+          </p>
+          <p>
+            <b>03</b>
+            <span>Reveal both impressions. The weaker one sets the score.</span>
+          </p>
         </div>
       </details>
       {mode !== "none" && (
@@ -764,7 +952,9 @@ function Entrance({
           <div className="section-kicker">
             {mode === "create" ? "Open a table" : "Join the press run"}
           </div>
-          <h2>{mode === "create" ? "Name your seat" : "Bring your table code"}</h2>
+          <h2>
+            {mode === "create" ? "Name your seat" : "Bring your table code"}
+          </h2>
           <label htmlFor="name">Your name</label>
           <input
             id="name"
@@ -794,24 +984,39 @@ function Entrance({
                 setError(null);
                 try {
                   if (mode === "create") {
-                    const result = await create({ displayName: name.trim(), guestToken: token });
+                    const result = await create({
+                      displayName: name.trim(),
+                      guestToken: token,
+                    });
+                    recordSession("match");
                     onRoom(result.roomId);
                   } else {
-                    const result = await join({ displayName: name.trim(), code, guestToken: token });
+                    const result = await join({
+                      displayName: name.trim(),
+                      code,
+                      guestToken: token,
+                    });
                     if (!result.ok) {
-                      setError("That table wasn’t found. Check the code and try again.");
+                      setError(
+                        "That table wasn’t found. Check the code and try again.",
+                      );
                     } else {
+                      recordSession("match");
                       onRoom(result.roomId);
                     }
                   }
-                } catch (joinError) {
-                  setError(joinError instanceof Error ? joinError.message : "That did not work.");
+                } catch {
+                  setError(TABLE_ACTION_UNAVAILABLE);
                 } finally {
                   setBusy(false);
                 }
               }}
             >
-              {busy ? "Setting the press…" : mode === "create" ? "Open the table" : "Take my seat"}
+              {busy
+                ? "Setting the press…"
+                : mode === "create"
+                  ? "Open the table"
+                  : "Take my seat"}
             </button>
             <button className="button ghost" onClick={() => setMode("none")}>
               Cancel
@@ -830,7 +1035,25 @@ export function DoubleTake() {
   const [mounted, setMounted] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
-  useEffect(() => setMounted(true), []);
+  const rememberRoom = useCallback((nextRoomId: RoomId | null) => {
+    setRoomId(nextRoomId);
+    try {
+      if (nextRoomId) window.localStorage.setItem(ROOM_STORAGE_KEY, nextRoomId);
+      else window.localStorage.removeItem(ROOM_STORAGE_KEY);
+    } catch {
+      // Reconnect persistence is best-effort in storage-restricted browsers.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const savedRoomId = window.localStorage.getItem(ROOM_STORAGE_KEY);
+      if (savedRoomId) setRoomId(savedRoomId as RoomId);
+    } catch {
+      // Continue at the entrance when this browser blocks local storage.
+    }
+    setMounted(true);
+  }, []);
 
   const startFresh = useCallback(async () => {
     if (resetting) return;
@@ -839,14 +1062,15 @@ export function DoubleTake() {
     try {
       // Drop the stranded local proof, then deliberately reset the server-side
       // continuity: this starts a NEW guest identity, it does not recover the old one.
+      rememberRoom(null);
       guest.clear();
       await guest.acquire(resetIssuer);
-    } catch (error) {
-      setResetError(error instanceof Error ? error.message : "Guest access failed. Try again.");
+    } catch {
+      setResetError(SEAT_RESET_UNAVAILABLE);
     } finally {
       setResetting(false);
     }
-  }, [guest, resetting]);
+  }, [guest, rememberRoom, resetting]);
 
   if (!mounted || (!guest.credential && (guest.loading || !guest.error)))
     return (
@@ -860,21 +1084,22 @@ export function DoubleTake() {
     );
 
   if (!guest.credential) {
-    const message =
-      guest.error instanceof Error
-        ? guest.error.message
-        : "Your seat could not be restored. Start as a new guest below.";
     return (
       <main className="stage">
         <BrandHeader />
         <div className="card">
           <div className="section-kicker">Fresh sheet needed</div>
           <h2>We couldn’t restore your previous seat.</h2>
-          <p className="small muted">{message}</p>
+          <p className="small muted">{SEAT_RECOVERY_UNAVAILABLE}</p>
           <p className="small muted">
-            Starting fresh makes a new seat. It won’t restore the old table or its scores.
+            Starting fresh makes a new seat. It won’t restore the old table or
+            its scores.
           </p>
-          <button className="button primary" onClick={startFresh} disabled={resetting}>
+          <button
+            className="button primary"
+            onClick={startFresh}
+            disabled={resetting}
+          >
             {resetting ? "Preparing a fresh sheet…" : "Start fresh"}
           </button>
           {resetError && <div className="error">{resetError}</div>}
@@ -887,9 +1112,13 @@ export function DoubleTake() {
     <main className="stage">
       <BrandHeader />
       {roomId ? (
-        <Room roomId={roomId} token={guest.credential} onExit={() => setRoomId(null)} />
+        <Room
+          roomId={roomId}
+          token={guest.credential}
+          onExit={() => rememberRoom(null)}
+        />
       ) : (
-        <Entrance token={guest.credential} onRoom={setRoomId} />
+        <Entrance token={guest.credential} onRoom={rememberRoom} />
       )}
     </main>
   );

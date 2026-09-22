@@ -78,10 +78,14 @@ function readConfig(env: Environment): SessionConfig {
   }
   if (!record(parsed)) configurationError();
   const keys = record(parsed.keys) ? parsed.keys : parsed;
-  const entries = Object.entries(keys).filter(([name]) => name !== "activeKeyId");
+  const entries = Object.entries(keys).filter(
+    ([name]) => name !== "activeKeyId",
+  );
   if (entries.length === 0) configurationError();
-  const activeKeyId = parsed.activeKeyId ?? (entries.length === 1 ? entries[0]![0] : undefined);
-  if (typeof activeKeyId !== "string" || !KEY_ID_PATTERN.test(activeKeyId)) configurationError();
+  const activeKeyId =
+    parsed.activeKeyId ?? (entries.length === 1 ? entries[0]![0] : undefined);
+  if (typeof activeKeyId !== "string" || !KEY_ID_PATTERN.test(activeKeyId))
+    configurationError();
   const continuitySecret = signingSecret(env.DOUBLETAKE_CONTINUITY_SECRET);
   let secret: Buffer | undefined;
   for (const [keyId, value] of entries) {
@@ -108,7 +112,9 @@ function readConfig(env: Environment): SessionConfig {
 
 /** The cookie name the other build mode would use. */
 function alternateCookieName(config: SessionConfig): string {
-  return config.cookieName === COOKIE_NAME_SECURE ? COOKIE_NAME_LOCAL : COOKIE_NAME_SECURE;
+  return config.cookieName === COOKIE_NAME_SECURE
+    ? COOKIE_NAME_LOCAL
+    : COOKIE_NAME_SECURE;
 }
 
 function clearCookie(name: string, secure: boolean): string {
@@ -132,7 +138,10 @@ function invalidContinuity(): never {
 }
 
 function signature(payload: string, secret: Buffer): Buffer {
-  return createHmac("sha256", secret).update(COOKIE_DOMAIN).update(payload).digest();
+  return createHmac("sha256", secret)
+    .update(COOKIE_DOMAIN)
+    .update(payload)
+    .digest();
 }
 
 function readContinuity(
@@ -141,7 +150,9 @@ function readContinuity(
   now: number,
 ): Continuity | null {
   const cookies = (cookieHeader ?? "").split(";").map((entry) => entry.trim());
-  const matching = cookies.filter((entry) => entry.split("=", 1)[0] === config.cookieName);
+  const matching = cookies.filter(
+    (entry) => entry.split("=", 1)[0] === config.cookieName,
+  );
   if (matching.length === 0) return null;
   if (matching.length !== 1) invalidContinuity();
   const cookie = matching[0]!.slice(config.cookieName.length + 1);
@@ -151,7 +162,11 @@ function readContinuity(
   const payload = parts[0]!;
   const supplied = decodeBase64Url(parts[1]!);
   const expected = signature(payload, config.continuitySecret);
-  if (!supplied || supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
+  if (
+    !supplied ||
+    supplied.length !== expected.length ||
+    !timingSafeEqual(supplied, expected)
+  ) {
     invalidContinuity();
   }
   const bytes = decodeBase64Url(payload);
@@ -183,7 +198,11 @@ function readContinuity(
   return claims as Continuity;
 }
 
-function serializeContinuity(claims: Continuity, config: SessionConfig, now: number): string {
+function serializeContinuity(
+  claims: Continuity,
+  config: SessionConfig,
+  now: number,
+): string {
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
   const value = `${payload}.${signature(payload, config.continuitySecret).toString("base64url")}`;
   return [
@@ -208,10 +227,17 @@ function invalidInput(): never {
 async function readInput(request: Request): Promise<IssuerInput> {
   if (!request.body) return { mode: "acquire" };
   if (
-    request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !==
-    "application/json"
+    request.headers
+      .get("content-type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase() !== "application/json"
   ) {
-    throw new SessionError(415, "JSON_REQUIRED", "Guest requests must use application/json.");
+    throw new SessionError(
+      415,
+      "JSON_REQUIRED",
+      "Guest requests must use application/json.",
+    );
   }
   const reader = request.body.getReader();
   const decoder = new TextDecoder("utf8", { fatal: true });
@@ -224,7 +250,11 @@ async function readInput(request: Request): Promise<IssuerInput> {
       size += value.byteLength;
       if (size > MAX_BODY_BYTES) {
         await reader.cancel();
-        throw new SessionError(413, "GUEST_REQUEST_TOO_LARGE", "Guest request is too large.");
+        throw new SessionError(
+          413,
+          "GUEST_REQUEST_TOO_LARGE",
+          "Guest request is too large.",
+        );
       }
       text += decoder.decode(value, { stream: true });
     }
@@ -245,7 +275,9 @@ async function readInput(request: Request): Promise<IssuerInput> {
   if (
     !record(input) ||
     Object.keys(input).some((key) => key !== "mode" && key !== "token") ||
-    (input.mode !== "acquire" && input.mode !== "refresh" && input.mode !== "reset") ||
+    (input.mode !== "acquire" &&
+      input.mode !== "refresh" &&
+      input.mode !== "reset") ||
     ("token" in input &&
       (input.mode !== "refresh" ||
         typeof input.token !== "string" ||
@@ -288,7 +320,9 @@ export async function issueGuestSession(
     // Reset deliberately drops the caller's own continuity (even an unreadable or
     // invalid one) and starts a fresh guest identity; it cannot touch anyone else.
     const reset = input.mode === "reset";
-    let continuity = reset ? null : readContinuity(request.headers.get("cookie"), config, now);
+    let continuity = reset
+      ? null
+      : readContinuity(request.headers.get("cookie"), config, now);
     if (!continuity) {
       if (!reset && (input.mode !== "acquire" || input.token !== undefined)) {
         throw new SessionError(
@@ -316,11 +350,17 @@ export async function issueGuestSession(
       }),
     );
     const responseHeaders = new Headers(headers);
-    responseHeaders.append("Set-Cookie", serializeContinuity(continuity, config, now));
+    responseHeaders.append(
+      "Set-Cookie",
+      serializeContinuity(continuity, config, now),
+    );
     if (reset) {
       // Also expire the cookie name used by the other build mode, so a guest
       // stranded by a dev/prod switch on one origin cannot loop on the failure.
-      responseHeaders.append("Set-Cookie", clearCookie(alternateCookieName(config), config.secure));
+      responseHeaders.append(
+        "Set-Cookie",
+        clearCookie(alternateCookieName(config), config.secure),
+      );
     }
     return Response.json(
       { token: issued.token, expiresAt: issued.claims.expiresAt },

@@ -7,7 +7,11 @@ export const gamePhase = v.union(
   v.literal("reveal"),
   v.literal("finished"),
 );
-const submissionStatus = v.union(v.literal("pending"), v.literal("judged"), v.literal("failed"));
+const submissionStatus = v.union(
+  v.literal("pending"),
+  v.literal("judged"),
+  v.literal("failed"),
+);
 
 export default defineSchema({
   ...parlorTables,
@@ -75,6 +79,24 @@ export default defineSchema({
     rawJson: v.string(),
     createdAt: v.number(),
   }).index("by_pair_normalized", ["pairKey", "normalized", "rubricVersion"]),
+  productEvents: defineTable({
+    eventId: v.string(),
+    eventName: v.string(),
+    game: v.literal("double-take"),
+    environment: v.union(
+      v.literal("production"),
+      v.literal("staging"),
+      v.literal("test"),
+    ),
+    occurredAt: v.string(),
+    sessionId: v.string(),
+    actorId: v.union(v.string(), v.null()),
+    schemaVersion: v.literal(1),
+    props: v.any(),
+  })
+    .index("by_event_id", ["eventId"])
+    .index("by_game_name_time", ["game", "eventName", "occurredAt"])
+    .index("by_session_time", ["sessionId", "occurredAt"]),
   rateLimits: defineTable({
     playerId: v.id("players"),
     windowStart: v.number(),

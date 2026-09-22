@@ -10,9 +10,21 @@ export const metadata: Metadata = {
   applicationName: "Double Take",
   icons: {
     icon: [
-      { url: "/brand/double-take-mark-16.svg", sizes: "16x16", type: "image/svg+xml" },
-      { url: "/brand/double-take-mark-32.svg", sizes: "32x32", type: "image/svg+xml" },
-      { url: "/brand/double-take-mark.svg", sizes: "any", type: "image/svg+xml" },
+      {
+        url: "/brand/double-take-mark-16.svg",
+        sizes: "16x16",
+        type: "image/svg+xml",
+      },
+      {
+        url: "/brand/double-take-mark-32.svg",
+        sizes: "32x32",
+        type: "image/svg+xml",
+      },
+      {
+        url: "/brand/double-take-mark.svg",
+        sizes: "any",
+        type: "image/svg+xml",
+      },
     ],
   },
   openGraph: {

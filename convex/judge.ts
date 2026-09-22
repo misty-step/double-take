@@ -45,7 +45,9 @@ export class JudgeUnavailableError extends Error {
   }
 }
 
-export function readJudgeConfig(env: Record<string, string | undefined>): JudgeConfig | null {
+export function readJudgeConfig(
+  env: Record<string, string | undefined>,
+): JudgeConfig | null {
   const url = env.JEV_DECISIONS_URL;
   const apiKey = env.OPENROUTER_API_KEY;
   const model = env.JEV_MODEL;
@@ -67,7 +69,11 @@ const MAX_RESPONSE_CHARS = 64 * 1024;
 
 type ScoreAnswer = { level: number; score: number; confidence: number };
 
-function parseScoreAnswer(value: unknown, levels: readonly string[], question: string): ScoreAnswer {
+function parseScoreAnswer(
+  value: unknown,
+  levels: readonly string[],
+  question: string,
+): ScoreAnswer {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw new JudgeUnavailableError(
       "JUDGE_BAD_RESPONSE",
@@ -92,14 +98,22 @@ function parseScoreAnswer(value: unknown, levels: readonly string[], question: s
       : 0;
   let level: number | null = null;
   const probabilities = answer.probabilities;
-  if (typeof probabilities === "object" && probabilities !== null && !Array.isArray(probabilities)) {
-    level = levelIndexFromProbabilities(probabilities as Record<string, number>, levels.length);
+  if (
+    typeof probabilities === "object" &&
+    probabilities !== null &&
+    !Array.isArray(probabilities)
+  ) {
+    level = levelIndexFromProbabilities(
+      probabilities as Record<string, number>,
+      levels.length,
+    );
   }
   if (level === null) level = levelIndexFromScore(score, levels.length);
   return { level, score, confidence };
 }
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export type AdjudicationDraft = {
   rubricVersion: string;
@@ -134,16 +148,22 @@ export async function runAdjudication(
       });
     } catch {
       lastCode = "JUDGE_NETWORK";
-      lastMessage = "The judge is unreachable right now. Nothing was scored; retry is free.";
+      lastMessage =
+        "The judge is unreachable right now. Nothing was scored; retry is free.";
       if (attempt < MAX_JUDGE_ATTEMPTS) {
         await sleep(400 * 2 ** (attempt - 1));
         continue;
       }
       throw new JudgeUnavailableError(lastCode, lastMessage);
     }
-    if (response.status === 429 || response.status === 529 || response.status >= 500) {
+    if (
+      response.status === 429 ||
+      response.status === 529 ||
+      response.status >= 500
+    ) {
       lastCode = `JUDGE_HTTP_${response.status}`;
-      lastMessage = "The judge is overloaded right now. Nothing was scored; retry is free.";
+      lastMessage =
+        "The judge is overloaded right now. Nothing was scored; retry is free.";
       if (attempt < MAX_JUDGE_ATTEMPTS) {
         await sleep(400 * 2 ** (attempt - 1));
         continue;
@@ -157,22 +177,47 @@ export async function runAdjudication(
       );
     const text = await response.text();
     if (text.length > MAX_RESPONSE_CHARS)
-      throw new JudgeUnavailableError("JUDGE_BAD_RESPONSE", "The judge response was unusable.");
+      throw new JudgeUnavailableError(
+        "JUDGE_BAD_RESPONSE",
+        "The judge response was unusable.",
+      );
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);
     } catch {
-      throw new JudgeUnavailableError("JUDGE_BAD_RESPONSE", "The judge response was unusable.");
+      throw new JudgeUnavailableError(
+        "JUDGE_BAD_RESPONSE",
+        "The judge response was unusable.",
+      );
     }
     const record = parsed as Record<string, unknown>;
     const answers = record.answers;
     if (typeof answers !== "object" || answers === null)
-      throw new JudgeUnavailableError("JUDGE_BAD_RESPONSE", "The judge returned no answers.");
+      throw new JudgeUnavailableError(
+        "JUDGE_BAD_RESPONSE",
+        "The judge returned no answers.",
+      );
     const bag = answers as Record<string, unknown>;
-    const plausibilityA = parseScoreAnswer(bag.plausibility_a, PLAUSIBILITY_LEVELS, "plausibility_a");
-    const plausibilityB = parseScoreAnswer(bag.plausibility_b, PLAUSIBILITY_LEVELS, "plausibility_b");
-    const coherence = parseScoreAnswer(bag.coherence, COHERENCE_LEVELS, "coherence");
-    const specificity = parseScoreAnswer(bag.specificity, SPECIFICITY_LEVELS, "specificity");
+    const plausibilityA = parseScoreAnswer(
+      bag.plausibility_a,
+      PLAUSIBILITY_LEVELS,
+      "plausibility_a",
+    );
+    const plausibilityB = parseScoreAnswer(
+      bag.plausibility_b,
+      PLAUSIBILITY_LEVELS,
+      "plausibility_b",
+    );
+    const coherence = parseScoreAnswer(
+      bag.coherence,
+      COHERENCE_LEVELS,
+      "coherence",
+    );
+    const specificity = parseScoreAnswer(
+      bag.specificity,
+      SPECIFICITY_LEVELS,
+      "specificity",
+    );
     const levels: JudgedLevels = {
       plausibilityA: plausibilityA.level,
       plausibilityB: plausibilityB.level,
@@ -181,7 +226,10 @@ export async function runAdjudication(
     };
     return {
       rubricVersion: RUBRIC_VERSION,
-      model: typeof record.model === "string" && record.model.length > 0 ? record.model : config.model,
+      model:
+        typeof record.model === "string" && record.model.length > 0
+          ? record.model
+          : config.model,
       levels,
       composed: composeResult(levels),
       confidenceMin: Math.min(

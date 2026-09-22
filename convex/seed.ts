@@ -12,13 +12,18 @@ export const run = internalMutation({
   returns: v.object({ pairs: v.number(), calibrations: v.number() }),
   handler: async () => {
     const keys = new Set(PAIRS.map((pair) => pair.key));
-    if (keys.size !== PAIRS.length) throw new Error("Duplicate pair keys in the deck");
+    if (keys.size !== PAIRS.length)
+      throw new Error("Duplicate pair keys in the deck");
     for (const example of CALIBRATION) {
       if (!keys.has(example.pairKey))
-        throw new Error(`Calibration references a missing pair: ${example.pairKey}`);
+        throw new Error(
+          `Calibration references a missing pair: ${example.pairKey}`,
+        );
       for (const level of Object.values(example.expected)) {
         if (!Number.isInteger(level) || level < 0 || level > 3)
-          throw new Error(`Calibration level out of range in ${example.pairKey}`);
+          throw new Error(
+            `Calibration level out of range in ${example.pairKey}`,
+          );
       }
     }
     return { pairs: PAIRS.length, calibrations: CALIBRATION.length };

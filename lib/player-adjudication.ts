@@ -32,7 +32,9 @@ function readingLevel(value: number, field: string): ReadingLevel {
  * The evaluator record is intentionally richer than the player projection.
  * Keep confidence, model, rubric, and diagnostic gates on the server.
  */
-export function toPlayerAdjudication(input: StoredAdjudication): PlayerAdjudication {
+export function toPlayerAdjudication(
+  input: StoredAdjudication,
+): PlayerAdjudication {
   if (!Number.isFinite(input.points) || input.points < 0 || input.points > 6) {
     throw new Error("points must be a finite score from 0 through 6");
   }

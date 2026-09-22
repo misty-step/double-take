@@ -34,7 +34,9 @@ export type ProductEventInput = {
   occurredAt: number;
   sessionId: string;
   actorId: string | null;
-} & (SessionStart | RoundStart | Submission | Judgment | RoundComplete | Replay);
+} & (
+  SessionStart | RoundStart | Submission | Judgment | RoundComplete | Replay
+);
 
 export type ProductEventEnvelope = Omit<ProductEventInput, "occurredAt"> & {
   game: "double-take";
@@ -62,14 +64,19 @@ function fail(message: string): never {
 }
 
 function objectProps(value: unknown): Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) fail("props must be an object");
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    fail("props must be an object");
   return value as Record<string, unknown>;
 }
 
-function exactKeys(props: Record<string, unknown>, expected: readonly string[]) {
+function exactKeys(
+  props: Record<string, unknown>,
+  expected: readonly string[],
+) {
   const allowed = new Set(expected);
   for (const key of Object.keys(props)) {
-    if (PRIVATE_KEYS.has(key.toLowerCase())) fail(`${key} is not permitted in analytics`);
+    if (PRIVATE_KEYS.has(key.toLowerCase()))
+      fail(`${key} is not permitted in analytics`);
     if (!allowed.has(key)) fail(`${key} is not defined by contract v1`);
   }
   for (const key of expected) {
@@ -78,22 +85,32 @@ function exactKeys(props: Record<string, unknown>, expected: readonly string[]) 
 }
 
 function positiveInteger(value: unknown, field: string) {
-  if (!Number.isInteger(value) || Number(value) < 1) fail(`${field} must be a positive integer`);
+  if (!Number.isInteger(value) || Number(value) < 1)
+    fail(`${field} must be a positive integer`);
 }
 
 function nonempty(value: unknown, field: string, max = 160) {
-  if (typeof value !== "string" || value.trim().length === 0 || value.length > max) {
+  if (
+    typeof value !== "string" ||
+    value.trim().length === 0 ||
+    value.length > max
+  ) {
     fail(`${field} must be a non-empty string at most ${max} characters long`);
   }
 }
 
-function validateProps(eventName: ProductEventInput["eventName"], value: unknown) {
+function validateProps(
+  eventName: ProductEventInput["eventName"],
+  value: unknown,
+) {
   const props = objectProps(value);
   switch (eventName) {
     case "session_start":
       exactKeys(props, ["mode", "newVisitor"]);
-      if (props.mode !== "match" && props.mode !== "solo") fail("mode must be match or solo");
-      if (typeof props.newVisitor !== "boolean") fail("newVisitor must be boolean");
+      if (props.mode !== "match" && props.mode !== "solo")
+        fail("mode must be match or solo");
+      if (typeof props.newVisitor !== "boolean")
+        fail("newVisitor must be boolean");
       return;
     case "round_start":
       exactKeys(props, ["roundIndex", "contextPairId"]);
@@ -110,22 +127,36 @@ function validateProps(eventName: ProductEventInput["eventName"], value: unknown
       exactKeys(
         props,
         hasReason
-          ? ["roundIndex", "coherence", "specificity", "refused", "refuseReason"]
+          ? [
+              "roundIndex",
+              "coherence",
+              "specificity",
+              "refused",
+              "refuseReason",
+            ]
           : ["roundIndex", "coherence", "specificity", "refused"],
       );
       positiveInteger(props.roundIndex, "roundIndex");
-      if (props.coherence !== "pass" && props.coherence !== "fail") fail("coherence must be pass or fail");
-      if (props.specificity !== "pass" && props.specificity !== "fail") fail("specificity must be pass or fail");
+      if (props.coherence !== "pass" && props.coherence !== "fail")
+        fail("coherence must be pass or fail");
+      if (props.specificity !== "pass" && props.specificity !== "fail")
+        fail("specificity must be pass or fail");
       if (typeof props.refused !== "boolean") fail("refused must be boolean");
-      if (props.refused && !hasReason) fail("refuseReason is required when refused is true");
-      if (!props.refused && hasReason) fail("refuseReason is only allowed when refused is true");
+      if (props.refused && !hasReason)
+        fail("refuseReason is required when refused is true");
+      if (!props.refused && hasReason)
+        fail("refuseReason is only allowed when refused is true");
       if (hasReason) nonempty(props.refuseReason, "refuseReason", 80);
       return;
     }
     case "round_complete":
       exactKeys(props, ["roundIndex", "score"]);
       positiveInteger(props.roundIndex, "roundIndex");
-      if (typeof props.score !== "number" || !Number.isFinite(props.score) || props.score < 0) {
+      if (
+        typeof props.score !== "number" ||
+        !Number.isFinite(props.score) ||
+        props.score < 0
+      ) {
         fail("score must be a finite non-negative number");
       }
       return;
@@ -133,22 +164,29 @@ function validateProps(eventName: ProductEventInput["eventName"], value: unknown
       exactKeys(props, ["fromRound"]);
       positiveInteger(props.fromRound, "fromRound");
       return;
+    default:
+      fail("event name is not defined by contract v1");
   }
 }
 
 export function parseProductEnvironment(value: unknown): ProductEnvironment {
-  if (value === "production" || value === "staging" || value === "test") return value;
+  if (value === "production" || value === "staging" || value === "test")
+    return value;
   throw new Error("PRODUCT_ENVIRONMENT must be production, staging, or test");
 }
 
-export function buildProductEvent(input: ProductEventInput): ProductEventEnvelope {
+export function buildProductEvent(
+  input: ProductEventInput,
+): ProductEventEnvelope {
   nonempty(input.eventId, "eventId", 200);
   nonempty(input.sessionId, "sessionId", 160);
   if (input.actorId !== null) {
     nonempty(input.actorId, "actorId", 160);
-    if (/@|\s/.test(input.actorId)) fail("actorId must be opaque and non-joinable");
+    if (/@|\s/.test(input.actorId))
+      fail("actorId must be opaque and non-joinable");
   }
-  if (!Number.isFinite(input.occurredAt) || input.occurredAt <= 0) fail("occurredAt must be an epoch timestamp");
+  if (!Number.isFinite(input.occurredAt) || input.occurredAt <= 0)
+    fail("occurredAt must be an epoch timestamp");
   validateProps(input.eventName, input.props);
 
   return {

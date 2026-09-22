@@ -8,7 +8,7 @@
   --sheet-raised: #2d243b;
   --ink: #fff8e7;
   --ink-soft: #cfc5d8;
-  --ink-faint: #aaa0b7;
+  --ink-faint: #b9afc5;
   --riso-red: #ff5a45;
   --riso-red-readable: #ff9588;
   --riso-blue: #4f6bff;
@@ -50,8 +50,16 @@ body::before {
   z-index: -1;
   inset: 0;
   background-image:
-    repeating-linear-gradient(0deg, transparent 0 3px, rgb(255 255 255 / 1.2%) 3px 4px),
-    repeating-linear-gradient(90deg, transparent 0 5px, rgb(0 0 0 / 1.4%) 5px 6px);
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 3px,
+      rgb(255 255 255 / 1.2%) 3px 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 5px,
+      rgb(0 0 0 / 1.4%) 5px 6px
+    );
   content: "";
   pointer-events: none;
 }
@@ -111,7 +119,7 @@ summary:focus-visible {
 
 .brand-header-note {
   color: var(--ink-soft);
-  font-size: 0.67rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.14em;
 }
@@ -188,7 +196,7 @@ summary:focus-visible {
 .section-kicker {
   margin-bottom: 0.8rem;
   color: var(--riso-red-readable);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 850;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -214,7 +222,9 @@ h1 span {
   position: relative;
   display: inline-block;
   color: var(--ink);
-  text-shadow: 0.045em 0.035em 0 var(--riso-blue), -0.035em -0.025em 0 var(--riso-red);
+  text-shadow:
+    0.018em 0.015em 0 var(--riso-blue),
+    -0.014em -0.012em 0 var(--riso-red);
 }
 
 h2 {
@@ -246,7 +256,7 @@ p {
 
 .registration-note {
   color: var(--ink-faint);
-  font-size: 0.57rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.19em;
   writing-mode: vertical-rl;
@@ -306,7 +316,7 @@ p {
   padding-right: 1rem;
   color: var(--ink-faint);
   font-family: "Arial Nova", "Helvetica Neue", Arial, sans-serif;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -335,7 +345,7 @@ p {
 
 .rule-steps b {
   color: var(--riso-red-readable);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   letter-spacing: 0.08em;
 }
 
@@ -384,7 +394,10 @@ p {
   font-weight: 800;
   letter-spacing: 0.015em;
   padding: 0.78rem 1.08rem;
-  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
 }
 
 .button:hover:not(:disabled) {
@@ -408,8 +421,18 @@ p {
 }
 
 .button:disabled {
+  border-color: var(--line);
+  background: var(--sheet-raised);
+  color: var(--ink-soft);
   cursor: not-allowed;
-  opacity: 0.48;
+  box-shadow: none;
+}
+
+.button.primary:disabled {
+  border-color: #515779;
+  background: #303557;
+  color: var(--ink-soft);
+  box-shadow: none;
 }
 
 .button-row {
@@ -459,7 +482,7 @@ textarea {
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   color: var(--ink-soft);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 750;
   letter-spacing: 0.06em;
   padding: 0.25rem 0.65rem;
@@ -528,7 +551,7 @@ textarea {
   top: 0.85rem;
   right: 0.9rem;
   color: var(--ink-faint);
-  font-size: 0.62rem;
+  font-size: 0.75rem;
   font-weight: 900;
   letter-spacing: 0.1em;
 }
@@ -582,7 +605,7 @@ textarea {
   justify-content: space-between;
   gap: 1rem;
   color: var(--riso-red-readable);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 850;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -648,7 +671,7 @@ textarea {
   align-items: center;
   gap: 0.4rem;
   color: var(--ink-soft);
-  font-size: 0.73rem;
+  font-size: 0.78rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -808,8 +831,20 @@ textarea {
     border-left: 0;
   }
 
-  .button {
+  .button-row > .button,
+  form .row > .button {
     flex: 1 1 9rem;
+  }
+
+  .row > .button.ghost.small {
+    min-height: 2.4rem;
+    flex: 0 0 auto;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.84rem;
+  }
+
+  textarea {
+    resize: none;
   }
 
   .impression {

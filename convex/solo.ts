@@ -6,13 +6,21 @@
  */
 
 import { resolvePlayer } from "@parlor/convex";
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, internalMutation } from "./_generated/server";
 import { pairByKey } from "./content";
-import { JudgeUnavailableError, readJudgeConfig, runAdjudication } from "./judge";
+import {
+  JudgeUnavailableError,
+  readJudgeConfig,
+  runAdjudication,
+} from "./judge";
+import { configuredProductEnvironment } from "./productEvents";
 import { checkSentence } from "./rules";
-import { toPlayerAdjudication, type PlayerAdjudication } from "../lib/player-adjudication";
+import {
+  toPlayerAdjudication,
+  type PlayerAdjudication,
+} from "../lib/player-adjudication";
 
 export const ensurePlayer = internalMutation({
   args: { guestToken: v.optional(v.string()) },
@@ -110,20 +118,32 @@ export const judge = action({
   args: {
     sentence: v.string(),
     pairKey: v.string(),
+    sessionId: v.string(),
+    roundIndex: v.number(),
     guestToken: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<SoloJudgeOutcome> => {
     const check = checkSentence(args.sentence);
-    if (!check.ok) return { ok: false, code: check.code, message: check.message };
+    if (!check.ok)
+      return { ok: false, code: check.code, message: check.message };
     const pair = pairByKey(args.pairKey);
     if (!pair)
-      return { ok: false, code: "PAIR_UNKNOWN", message: "That context pair does not exist." };
-    const config = readJudgeConfig(process.env as Record<string, string | undefined>);
-    if (!config)
       return {
         ok: false,
-        code: "JUDGE_UNCONFIGURED",
-        message: "The judge is not configured on this server yet.",
+        code: "PAIR_UNKNOWN",
+        message: "That context pair does not exist.",
+      };
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        args.sessionId,
+      ) ||
+      !Number.isInteger(args.roundIndex) ||
+      args.roundIndex < 1
+    )
+      return {
+        ok: false,
+        code: "SESSION_INVALID",
+        message: "Start a fresh practice session and try again.",
       };
     const playerId = await ctx.runMutation(internal.solo.ensurePlayer, {
       guestToken: args.guestToken,
@@ -134,10 +154,62 @@ export const judge = action({
         code: "NOT_AUTHORIZED",
         message: "A guest seat is required before the judge will answer.",
       };
+    const environment = configuredProductEnvironment();
+    const emit = (event: {
+      eventId: string;
+      eventName: string;
+      props: Record<string, unknown>;
+    }) =>
+      ctx.runMutation(internal.productEvents.ingest, {
+        ...event,
+        environment,
+        occurredAt: Date.now(),
+        sessionId: args.sessionId,
+        actorId: null,
+      });
+    if (args.roundIndex > 1) {
+      await emit({
+        eventId: `double-take:v1:solo-replay:${args.sessionId}:${args.roundIndex}`,
+        eventName: "replay",
+        props: { fromRound: args.roundIndex - 1 },
+      });
+    }
+    await emit({
+      eventId: `double-take:v1:solo-round-start:${args.sessionId}:${args.roundIndex}`,
+      eventName: "round_start",
+      props: { roundIndex: args.roundIndex, contextPairId: pair.key },
+    });
+    await emit({
+      eventId: `double-take:v1:solo-submission:${args.sessionId}:${args.roundIndex}`,
+      eventName: "submission",
+      props: { roundIndex: args.roundIndex, wordCount: check.wordCount },
+    });
+    const config = readJudgeConfig(
+      process.env as Record<string, string | undefined>,
+    );
+    if (!config) {
+      await emit({
+        eventId: `double-take:v1:solo-judgment-refused:${args.sessionId}:${args.roundIndex}:unconfigured`,
+        eventName: "judgment",
+        props: {
+          roundIndex: args.roundIndex,
+          coherence: "fail",
+          specificity: "fail",
+          refused: true,
+          refuseReason: "unconfigured",
+        },
+      });
+      return {
+        ok: false,
+        code: "JUDGE_UNCONFIGURED",
+        message: "The judge is not configured on this server yet.",
+      };
+    }
     try {
       await ctx.runMutation(internal.limits.charge, { playerId });
     } catch (error) {
-      const data = (error as { data?: { code?: string; message?: string } }).data;
+      const data = (error as { data?: { code?: string; message?: string } })
+        .data;
       if (data?.code === "SLOW_DOWN")
         return {
           ok: false,
@@ -162,11 +234,40 @@ export const judge = action({
         confidenceMin: draft.confidenceMin,
         rawJson: draft.rawJson,
       });
-      return { ok: true, result: { text: check.text, ...toPlayerAdjudication(retained) } };
+      await emit({
+        eventId: `double-take:v1:solo-judgment:${args.sessionId}:${args.roundIndex}`,
+        eventName: "judgment",
+        props: {
+          roundIndex: args.roundIndex,
+          coherence: retained.levels.coherence >= 2 ? "pass" : "fail",
+          specificity: retained.levels.specificity >= 2 ? "pass" : "fail",
+          refused: false,
+        },
+      });
+      await emit({
+        eventId: `double-take:v1:solo-round-complete:${args.sessionId}:${args.roundIndex}`,
+        eventName: "round_complete",
+        props: { roundIndex: args.roundIndex, score: retained.points },
+      });
+      return {
+        ok: true,
+        result: { text: check.text, ...toPlayerAdjudication(retained) },
+      };
     } catch (error) {
       if (error instanceof JudgeUnavailableError) {
         // A judge outage must not cost a charge; the retry stays free.
         await ctx.runMutation(internal.limits.refund, { playerId });
+        await emit({
+          eventId: `double-take:v1:solo-judgment-refused:${args.sessionId}:${args.roundIndex}:${error.code}`,
+          eventName: "judgment",
+          props: {
+            roundIndex: args.roundIndex,
+            coherence: "fail",
+            specificity: "fail",
+            refused: true,
+            refuseReason: error.code,
+          },
+        });
         return { ok: false, code: error.code, message: error.message };
       }
       throw error;

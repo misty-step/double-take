@@ -33,7 +33,9 @@ async function environmentFile(path) {
     return { text, values: parseEnv(text) };
   } catch (error) {
     if (error.code === "ENOENT") return { text: "", values: {} };
-    throw new Error(`Cannot read ${path}. Check the file's permissions and dotenv syntax.`);
+    throw new Error(
+      `Cannot read ${path}. Check the file's permissions and dotenv syntax.`,
+    );
   }
 }
 
@@ -54,7 +56,9 @@ function assertLocalSelectors(values, source) {
     );
   }
   if (values.DOUBLETAKE_LOCAL && values.DOUBLETAKE_LOCAL !== "true") {
-    throw new Error(`${source} must set DOUBLETAKE_LOCAL=true for anonymous local play.`);
+    throw new Error(
+      `${source} must set DOUBLETAKE_LOCAL=true for anonymous local play.`,
+    );
   }
 }
 
@@ -87,7 +91,9 @@ async function readLocalState(required = false) {
   } catch (error) {
     if (error.code === "ENOENT" && !required) return null;
     if (error.code === "ENOENT")
-      throw new Error("No project-local anonymous backend exists. Run pnpm bootstrap first.");
+      throw new Error(
+        "No project-local anonymous backend exists. Run pnpm bootstrap first.",
+      );
     if (error instanceof SyntaxError)
       throw new Error(
         "Local Convex config is not valid JSON. Restore .convex/local/default/config.json before proceeding.",
@@ -104,7 +110,9 @@ function readSecret(value, name) {
   }
   const bytes = Buffer.from(value, "base64url");
   if (bytes.length < 32 || bytes.toString("base64url") !== value) {
-    throw new Error(`${name} is not a canonical base64url secret of at least 32 bytes.`);
+    throw new Error(
+      `${name} is not a canonical base64url secret of at least 32 bytes.`,
+    );
   }
   return bytes;
 }
@@ -122,20 +130,36 @@ function validateSigningConfiguration(values) {
     throw new Error("PARLOR_GUEST_TOKEN_KEYS must be a JSON signing-key map.");
   }
   const keys =
-    ring.keys && typeof ring.keys === "object" && !Array.isArray(ring.keys) ? ring.keys : ring;
-  const entries = Object.entries(keys).filter(([name]) => name !== "activeKeyId");
-  const activeKeyId = ring.activeKeyId ?? (entries.length === 1 ? entries[0][0] : undefined);
-  if (typeof activeKeyId !== "string" || !entries.some(([key]) => key === activeKeyId)) {
+    ring.keys && typeof ring.keys === "object" && !Array.isArray(ring.keys)
+      ? ring.keys
+      : ring;
+  const entries = Object.entries(keys).filter(
+    ([name]) => name !== "activeKeyId",
+  );
+  const activeKeyId =
+    ring.activeKeyId ?? (entries.length === 1 ? entries[0][0] : undefined);
+  if (
+    typeof activeKeyId !== "string" ||
+    !entries.some(([key]) => key === activeKeyId)
+  ) {
     throw new Error(
       "PARLOR_GUEST_TOKEN_KEYS must identify an activeKeyId when it contains multiple keys.",
     );
   }
-  const continuity = readSecret(values.DOUBLETAKE_CONTINUITY_SECRET, "DOUBLETAKE_CONTINUITY_SECRET");
+  const continuity = readSecret(
+    values.DOUBLETAKE_CONTINUITY_SECRET,
+    "DOUBLETAKE_CONTINUITY_SECRET",
+  );
   for (const [key, value] of entries) {
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(key))
-      throw new Error("Guest signing key identifiers must be 1–64 URL-safe characters.");
+      throw new Error(
+        "Guest signing key identifiers must be 1–64 URL-safe characters.",
+      );
     const access = readSecret(value, "PARLOR_GUEST_TOKEN_KEYS signing key");
-    if (access.length === continuity.length && timingSafeEqual(access, continuity)) {
+    if (
+      access.length === continuity.length &&
+      timingSafeEqual(access, continuity)
+    ) {
       throw new Error(
         "DOUBLETAKE_CONTINUITY_SECRET must be different from every access-token signing key.",
       );
@@ -154,10 +178,16 @@ export async function prepareLocalEnvironment({ create = false } = {}) {
   assertLocalSelectors(local.values, ".env.local");
   await mkdir(LOCAL_DIR, { recursive: true, mode: 0o700 });
   if ((await realpath(LOCAL_DIR)) !== LOCAL_DIR)
-    throw new Error(".convex must belong to this checkout, not a symlinked directory.");
+    throw new Error(
+      ".convex must belong to this checkout, not a symlinked directory.",
+    );
   const state = await readLocalState();
   const deployment = `anonymous:${state?.deploymentName ?? "anonymous-agent"}`;
-  if (state && local.values.CONVEX_DEPLOYMENT && local.values.CONVEX_DEPLOYMENT !== deployment) {
+  if (
+    state &&
+    local.values.CONVEX_DEPLOYMENT &&
+    local.values.CONVEX_DEPLOYMENT !== deployment
+  ) {
     throw new Error(
       ".env.local and project-local Convex state select different deployments. Resolve the mismatch before proceeding.",
     );
@@ -169,6 +199,9 @@ export async function prepareLocalEnvironment({ create = false } = {}) {
     NEXT_PUBLIC_CONVEX_URL: BACKEND_URL,
     NEXT_PUBLIC_CONVEX_SITE_URL: SITE_URL,
     DOUBLETAKE_LOCAL: "true",
+    APP_ENVIRONMENT: "test",
+    APP_RELEASE: "local",
+    PRODUCT_ENVIRONMENT: "test",
     PARLOR_GUEST_TOKEN_AUDIENCE: "doubletake",
   };
   let additions = "";
@@ -188,7 +221,11 @@ export async function prepareLocalEnvironment({ create = false } = {}) {
     } catch {
       throw new Error(`${key} must be an HTTP origin on local port ${port}.`);
     }
-    if (url.protocol !== "http:" || url.port !== port || url.origin !== values[key]) {
+    if (
+      url.protocol !== "http:" ||
+      url.port !== port ||
+      url.origin !== values[key]
+    ) {
       throw new Error(
         `${key} must be an HTTP origin on port ${port}, without a path or credentials. Use this computer's LAN IP for physical phones.`,
       );
@@ -202,17 +239,26 @@ export async function prepareLocalEnvironment({ create = false } = {}) {
       additions += `PARLOR_GUEST_TOKEN_KEYS='${values.PARLOR_GUEST_TOKEN_KEYS}'\n`;
     }
     if (!values.DOUBLETAKE_CONTINUITY_SECRET) {
-      values.DOUBLETAKE_CONTINUITY_SECRET = randomBytes(32).toString("base64url");
+      values.DOUBLETAKE_CONTINUITY_SECRET =
+        randomBytes(32).toString("base64url");
       additions += `DOUBLETAKE_CONTINUITY_SECRET=${values.DOUBLETAKE_CONTINUITY_SECRET}\n`;
     }
   }
   validateSigningConfiguration(values);
-  if (!create && (!state || !local.values.CONVEX_DEPLOYMENT || !local.values.DOUBLETAKE_LOCAL)) {
+  if (
+    !create &&
+    (!state ||
+      !local.values.CONVEX_DEPLOYMENT ||
+      !local.values.DOUBLETAKE_LOCAL)
+  ) {
     throw new Error("Local bootstrap is incomplete. Run pnpm bootstrap first.");
   }
   if (additions) {
-    const separator = local.text.length > 0 && !local.text.endsWith("\n") ? "\n" : "";
-    await writeFile(ENV_FILE, `${local.text}${separator}${additions}`, { mode: 0o600 });
+    const separator =
+      local.text.length > 0 && !local.text.endsWith("\n") ? "\n" : "";
+    await writeFile(ENV_FILE, `${local.text}${separator}${additions}`, {
+      mode: 0o600,
+    });
   }
   await chmod(ENV_FILE, 0o600);
   await mkdir(join(LOCAL_DIR, "cli-home"), { recursive: true, mode: 0o700 });
@@ -310,7 +356,10 @@ export class LocalProcesses {
     const job = this.start(program, args, options);
     const result = await job.done;
     if (result.code !== 0)
-      throw new Error(result.error ?? `${job.label} exited unsuccessfully. See its output above.`);
+      throw new Error(
+        result.error ??
+          `${job.label} exited unsuccessfully. See its output above.`,
+      );
   }
 
   stop(exitCode) {
@@ -359,7 +408,10 @@ async function waitForBackend(job, expectedName) {
       if (response.ok) {
         const name = await response.text();
         const state = await readLocalState(true);
-        if (name !== state.deploymentName || (expectedName && name !== expectedName)) {
+        if (
+          name !== state.deploymentName ||
+          (expectedName && name !== expectedName)
+        ) {
           throw new Error(
             "Port 3220 belongs to a different deployment. Refusing to send it credentials or change its data.",
           );
@@ -384,12 +436,17 @@ export async function startBackend(processes, local, { reuse = false } = {}) {
   if (reuse && local.state) {
     let response;
     try {
-      response = await fetch(`${BACKEND_URL}/instance_name`, { signal: AbortSignal.timeout(1500) });
+      response = await fetch(`${BACKEND_URL}/instance_name`, {
+        signal: AbortSignal.timeout(1500),
+      });
     } catch {
       /* No backend is running; start one below. */
     }
     if (response) {
-      if (!response.ok || (await response.text()) !== local.state.deploymentName) {
+      if (
+        !response.ok ||
+        (await response.text()) !== local.state.deploymentName
+      ) {
         throw new Error(
           "Port 3220 does not belong to this anonymous local deployment. Reset refused.",
         );
@@ -412,7 +469,8 @@ export async function startBackend(processes, local, { reuse = false } = {}) {
     "--tail-logs",
     "disable",
   ];
-  if (local.state) args.push("--local-backend-version", local.state.backendVersion);
+  if (local.state)
+    args.push("--local-backend-version", local.state.backendVersion);
   const job = processes.start(process.execPath, args, {
     env: local.cliEnv,
     label: "anonymous local Convex",
@@ -424,7 +482,9 @@ export async function startBackend(processes, local, { reuse = false } = {}) {
 export async function configureBackend(processes, local, backend) {
   const state = await readLocalState(true);
   if (state.deploymentName !== backend.state.deploymentName)
-    throw new Error("Local deployment changed while starting. Refusing to configure it.");
+    throw new Error(
+      "Local deployment changed while starting. Refusing to configure it.",
+    );
   await writeFile(
     CONTROL_FILE,
     `CONVEX_SELF_HOSTED_URL=${BACKEND_URL}\nCONVEX_SELF_HOSTED_ADMIN_KEY=${state.adminKey}\n`,
@@ -437,6 +497,7 @@ export async function configureBackend(processes, local, backend) {
       `PARLOR_GUEST_TOKEN_KEYS='${local.values.PARLOR_GUEST_TOKEN_KEYS}'`,
       "PARLOR_GUEST_TOKEN_AUDIENCE=doubletake",
       "DOUBLETAKE_LOCAL=true",
+      "PRODUCT_ENVIRONMENT=test",
       "",
     ].join("\n"),
     { mode: 0o600 },
@@ -444,7 +505,16 @@ export async function configureBackend(processes, local, backend) {
   await chmod(SETTINGS_FILE, 0o600);
   await processes.run(
     process.execPath,
-    [CLI, "env", "set", "--from-file", SETTINGS_FILE, "--force", "--env-file", CONTROL_FILE],
+    [
+      CLI,
+      "env",
+      "set",
+      "--from-file",
+      SETTINGS_FILE,
+      "--force",
+      "--env-file",
+      CONTROL_FILE,
+    ],
     {
       env: local.cliEnv,
       label: "local Convex signing-key configuration",
@@ -454,7 +524,9 @@ export async function configureBackend(processes, local, backend) {
     const deadline = Date.now() + 120_000;
     while (!backend.job.ready) {
       if (backend.job.finished)
-        throw new Error("Convex exited before functions were deployed. See its output above.");
+        throw new Error(
+          "Convex exited before functions were deployed. See its output above.",
+        );
       if (Date.now() >= deadline)
         throw new Error(
           "Convex did not finish deploying functions. Fix the backend errors above, then rerun pnpm bootstrap.",
@@ -470,7 +542,9 @@ export async function configureBackend(processes, local, backend) {
     if (persisted.values[key] === local.values[key]) continue;
     const assignment = `${key}=${local.values[key]}`;
     const pattern = new RegExp(`^(?:export\\s+)?${key}\\s*=.*$`, "gm");
-    text = pattern.test(text) ? text.replace(pattern, assignment) : `${text}\n${assignment}\n`;
+    text = pattern.test(text)
+      ? text.replace(pattern, assignment)
+      : `${text}\n${assignment}\n`;
   }
   if (text !== persisted.text) await writeFile(ENV_FILE, text, { mode: 0o600 });
 }
@@ -486,7 +560,16 @@ export async function runInternal(processes, local, name) {
     throw new Error("Local backend identity changed. Maintenance refused.");
   await processes.run(
     process.execPath,
-    [CLI, "run", name, "{}", "--env-file", CONTROL_FILE, "--typecheck", "disable"],
+    [
+      CLI,
+      "run",
+      name,
+      "{}",
+      "--env-file",
+      CONTROL_FILE,
+      "--typecheck",
+      "disable",
+    ],
     {
       env: local.cliEnv,
       label: name === "seed:reset" ? "local game reset" : "local content seed",
@@ -514,5 +597,7 @@ export async function startWeb(processes, local) {
 }
 
 export async function buildParlor(processes) {
-  await processes.run("pnpm", ["build:parlor"], { label: "vendored Parlor build" });
+  await processes.run("pnpm", ["build:parlor"], {
+    label: "vendored Parlor build",
+  });
 }

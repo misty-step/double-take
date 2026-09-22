@@ -21,6 +21,7 @@ export type SentenceCheck =
   | { ok: true; text: string; normalized: string; wordCount: number }
   | { ok: false; code: string; message: string };
 
+// oxlint-disable-next-line no-control-regex -- the input boundary removes controls explicitly.
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 
 /** Treat player text as data: strip control characters, collapse whitespace. */
@@ -66,7 +67,12 @@ export function checkSentence(input: string): SentenceCheck {
     };
   if (!/[a-zA-Z0-9]/.test(text))
     return { ok: false, code: "NO_LETTERS", message: "Letters, please." };
-  return { ok: true, text, normalized: normalizeSentence(text), wordCount: words };
+  return {
+    ok: true,
+    text,
+    normalized: normalizeSentence(text),
+    wordCount: words,
+  };
 }
 
 /** Points for the weaker reading. Deterministic table, no interpolation. */
@@ -99,11 +105,26 @@ export const GATE_MESSAGES: Record<Gate, string> = {
 export function composeResult(levels: JudgedLevels): ComposedResult {
   const weaker = Math.min(levels.plausibilityA, levels.plausibilityB);
   if (levels.coherence < 2)
-    return { weaker, points: 0, gate: "stitched", gateMessage: GATE_MESSAGES.stitched };
+    return {
+      weaker,
+      points: 0,
+      gate: "stitched",
+      gateMessage: GATE_MESSAGES.stitched,
+    };
   if (levels.specificity < 1)
-    return { weaker, points: 0, gate: "generic", gateMessage: GATE_MESSAGES.generic };
+    return {
+      weaker,
+      points: 0,
+      gate: "generic",
+      gateMessage: GATE_MESSAGES.generic,
+    };
   if (weaker < 1)
-    return { weaker, points: 0, gate: "unreadable", gateMessage: GATE_MESSAGES.unreadable };
+    return {
+      weaker,
+      points: 0,
+      gate: "unreadable",
+      gateMessage: GATE_MESSAGES.unreadable,
+    };
   return {
     weaker,
     points: PLAUSIBILITY_POINTS[weaker] ?? 0,

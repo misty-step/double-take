@@ -6,9 +6,9 @@ describe("health boundary", () => {
     expect(
       parseBackendHealth({ status: "ok", service: "double-take-backend" }),
     ).toEqual({ status: "ok", service: "double-take-backend" });
-    expect(() => parseBackendHealth({ status: "ok", service: "other" })).toThrow(
-      /backend health/i,
-    );
+    expect(() =>
+      parseBackendHealth({ status: "ok", service: "other" }),
+    ).toThrow(/backend health/i);
     expect(() => parseBackendHealth("ok")).toThrow(/backend health/i);
   });
 

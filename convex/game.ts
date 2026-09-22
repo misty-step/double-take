@@ -8,16 +8,35 @@
  * before the reveal phase.
  */
 
-import { beginMatch, completeMatch, requireActiveMatch, resolvePlayer } from "@parlor/convex";
+import {
+  beginMatch,
+  completeMatch,
+  requireActiveMatch,
+  resolvePlayer,
+} from "@parlor/convex";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import {
+  action,
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { PAIRS, pairByKey } from "./content";
 import { gamePhase } from "./schema";
-import { JudgeUnavailableError, readJudgeConfig, runAdjudication } from "./judge";
+import {
+  JudgeUnavailableError,
+  readJudgeConfig,
+  runAdjudication,
+} from "./judge";
 import { chargeRateLimit } from "./limits";
+import {
+  configuredProductEnvironment,
+  recordProductEvent,
+} from "./productEvents";
 import { toPlayerAdjudication } from "../lib/player-adjudication";
 import {
   checkSentence,
@@ -41,7 +60,12 @@ function stableHash(text: string): number {
   return hash;
 }
 
-function pickPair(roomId: Id<"rooms">, cycle: number, round: number, previousKey?: string) {
+function pickPair(
+  roomId: Id<"rooms">,
+  cycle: number,
+  round: number,
+  previousKey?: string,
+) {
   const start = stableHash(`${roomId}:${cycle}:${round}`) % PAIRS.length;
   let pair = PAIRS[start]!;
   if (previousKey !== undefined && pair.key === previousKey) {
@@ -50,7 +74,11 @@ function pickPair(roomId: Id<"rooms">, cycle: number, round: number, previousKey
   return pair;
 }
 
-async function gameAccess(ctx: ReadCtx, gameId: Id<"games">, guestToken?: string) {
+async function gameAccess(
+  ctx: ReadCtx,
+  gameId: Id<"games">,
+  guestToken?: string,
+) {
   const game = await ctx.db.get(gameId);
   if (!game) fail("GAME_NOT_FOUND", "That table is gone.");
   const actor = await resolvePlayer(ctx, guestToken);
@@ -60,20 +88,27 @@ async function gameAccess(ctx: ReadCtx, gameId: Id<"games">, guestToken?: string
       q.eq("matchId", game.matchId).eq("playerId", actor.playerId),
     )
     .unique();
-  if (!participant) fail("MATCH_PARTICIPANT_REQUIRED", "You are not seated at this table.");
+  if (!participant)
+    fail("MATCH_PARTICIPANT_REQUIRED", "You are not seated at this table.");
   return { game, actor };
 }
 
 async function roundRow(ctx: ReadCtx, game: Game) {
   const round = await ctx.db
     .query("rounds")
-    .withIndex("by_game_round", (q) => q.eq("gameId", game._id).eq("round", game.round))
+    .withIndex("by_game_round", (q) =>
+      q.eq("gameId", game._id).eq("round", game.round),
+    )
     .unique();
   if (!round) fail("GAME_DATA_INVALID", "Round state is missing.");
   return round;
 }
 
-async function isHostOf(ctx: ReadCtx, roomId: Id<"rooms">, playerId: Id<"players">) {
+async function isHostOf(
+  ctx: ReadCtx,
+  roomId: Id<"rooms">,
+  playerId: Id<"players">,
+) {
   const room = await ctx.db.get(roomId);
   return room !== null && room.hostPlayerId === playerId;
 }
@@ -107,7 +142,9 @@ export const start = mutation({
       .query("roomMembers")
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
       .take(64);
-    const nameByPlayer = new Map(members.map((member) => [member.playerId as string, member]));
+    const nameByPlayer = new Map(
+      members.map((member) => [member.playerId as string, member]),
+    );
     const participants = await ctx.db
       .query("matchParticipants")
       .withIndex("by_match", (q) => q.eq("matchId", match.id))
@@ -115,7 +152,9 @@ export const start = mutation({
     const players = participants
       .map((participant) => ({
         playerId: participant.playerId,
-        name: nameByPlayer.get(participant.playerId as string)?.displayName ?? "Player",
+        name:
+          nameByPlayer.get(participant.playerId as string)?.displayName ??
+          "Player",
         seatIndex: participant.seatIndex,
         score: 0,
         roundPoints: 0,
@@ -141,6 +180,15 @@ export const start = mutation({
       pairKey: pair.key,
       deadline: startedAt + WRITING_WINDOW_MS,
     });
+    await recordProductEvent(ctx, {
+      eventId: `double-take:v1:round-start:${gameId}:1`,
+      eventName: "round_start",
+      environment: configuredProductEnvironment(),
+      occurredAt: startedAt,
+      sessionId: gameId,
+      actorId: null,
+      props: { roundIndex: 1, contextPairId: pair.key },
+    });
     return gameId;
   },
 });
@@ -162,7 +210,11 @@ export const submit = mutation({
     const { game, actor } = await gameAccess(ctx, args.gameId, args.guestToken);
     await requireActiveMatch(ctx, game.matchId, game.roomId);
     if (game.phase !== "writing")
-      return { ok: false, code: "WRONG_PHASE", message: "This round is already closed." };
+      return {
+        ok: false,
+        code: "WRONG_PHASE",
+        message: "This round is already closed.",
+      };
     const round = await roundRow(ctx, game);
     const now = Date.now();
     if (now > round.deadline)
@@ -172,21 +224,27 @@ export const submit = mutation({
         message: "The writing window closed. Wait for the reveal.",
       };
     const check = checkSentence(args.text);
-    if (!check.ok) return { ok: false, code: check.code, message: check.message };
+    if (!check.ok)
+      return { ok: false, code: check.code, message: check.message };
     const existing = await ctx.db
       .query("submissions")
       .withIndex("by_game_round_player", (q) =>
-        q.eq("gameId", args.gameId).eq("round", game.round).eq("playerId", actor.playerId),
+        q
+          .eq("gameId", args.gameId)
+          .eq("round", game.round)
+          .eq("playerId", actor.playerId),
       )
       .unique();
     if (existing && existing.revision >= MAX_SUBMISSIONS_PER_ROUND)
       return {
         ok: false,
         code: "REVISION_LIMIT",
-        message: "That was the last revision for this round. Live with it — or don't.",
+        message:
+          "That was the last revision for this round. Live with it — or don't.",
       };
     // Charge only accepted lines; refused revisions never cost a token.
     await chargeRateLimit(ctx, actor.playerId, now);
+    const revision = existing ? existing.revision + 1 : 1;
     if (existing) {
       await ctx.db.patch(existing._id, {
         text: check.text,
@@ -195,7 +253,7 @@ export const submit = mutation({
         status: "pending",
         adjudicationId: undefined,
         failureCode: undefined,
-        revision: existing.revision + 1,
+        revision,
         createdAt: now,
       });
     } else {
@@ -207,10 +265,19 @@ export const submit = mutation({
         normalized: check.normalized,
         wordCount: check.wordCount,
         status: "pending",
-        revision: 1,
+        revision,
         createdAt: now,
       });
     }
+    await recordProductEvent(ctx, {
+      eventId: `double-take:v1:submission:${args.gameId}:${game.round}:${stableHash(`${actor.playerId}:${revision}`)}`,
+      eventName: "submission",
+      environment: configuredProductEnvironment(),
+      occurredAt: now,
+      sessionId: args.gameId,
+      actorId: null,
+      props: { roundIndex: game.round, wordCount: check.wordCount },
+    });
     return { ok: true, wordCount: check.wordCount };
   },
 });
@@ -223,7 +290,9 @@ export const pendingSubmissions = internalQuery({
     if (!game) return null;
     const submissions = await ctx.db
       .query("submissions")
-      .withIndex("by_game_round", (q) => q.eq("gameId", args.gameId).eq("round", game.round))
+      .withIndex("by_game_round", (q) =>
+        q.eq("gameId", args.gameId).eq("round", game.round),
+      )
       .take(16);
     const pair = pairByKey(game.pairKey);
     if (!pair) return null;
@@ -266,8 +335,12 @@ export const applyAdjudication = internalMutation({
   },
   handler: async (ctx, args) => {
     const submission = await ctx.db.get(args.submissionId);
-    if (!submission || submission.status !== "pending") return { applied: false, stale: false };
-    if (submission.revision !== args.revision || submission.normalized !== args.normalized)
+    if (!submission || submission.status !== "pending")
+      return { applied: false, stale: false };
+    if (
+      submission.revision !== args.revision ||
+      submission.normalized !== args.normalized
+    )
       // The writer revised while this judgment was in flight. Leave it pending
       // so the fresh text gets its own pass instead of a stale score.
       return { applied: false, stale: true };
@@ -301,7 +374,24 @@ export const applyAdjudication = internalMutation({
       adjudicationId,
       failureCode: undefined,
     });
-    return { applied: true, reused: retained !== null && retained !== undefined };
+    await recordProductEvent(ctx, {
+      eventId: `double-take:v1:judgment:${submission.gameId}:${submission.round}:${stableHash(`${submission.playerId}:${submission.revision}`)}`,
+      eventName: "judgment",
+      environment: configuredProductEnvironment(),
+      occurredAt: Date.now(),
+      sessionId: submission.gameId,
+      actorId: null,
+      props: {
+        roundIndex: submission.round,
+        coherence: args.levels.coherence >= 2 ? "pass" : "fail",
+        specificity: args.levels.specificity >= 2 ? "pass" : "fail",
+        refused: false,
+      },
+    });
+    return {
+      applied: true,
+      reused: retained !== null && retained !== undefined,
+    };
   },
 });
 
@@ -320,7 +410,8 @@ export const judgeGate = internalMutation({
   }),
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
-    if (!game) return { ok: false, code: "GAME_NOT_FOUND", message: "No such game." };
+    if (!game)
+      return { ok: false, code: "GAME_NOT_FOUND", message: "No such game." };
     let playerId: Id<"players">;
     try {
       const actor = await resolvePlayer(ctx, args.guestToken);
@@ -329,7 +420,8 @@ export const judgeGate = internalMutation({
       return {
         ok: false,
         code: "NOT_AUTHORIZED",
-        message: "A seat at the table is required before the judge will answer.",
+        message:
+          "A seat at the table is required before the judge will answer.",
       };
     }
     const participant = await ctx.db
@@ -347,7 +439,8 @@ export const judgeGate = internalMutation({
     try {
       await chargeRateLimit(ctx, playerId, Date.now());
     } catch (error) {
-      const data = (error as { data?: { code?: string; message?: string } }).data;
+      const data = (error as { data?: { code?: string; message?: string } })
+        .data;
       if (data?.code === "SLOW_DOWN")
         return {
           ok: false,
@@ -383,7 +476,9 @@ export const judge = action({
     message: v.optional(v.string()),
   }),
   handler: async (ctx, args): Promise<JudgeOutcome> => {
-    const config = readJudgeConfig(process.env as Record<string, string | undefined>);
+    const config = readJudgeConfig(
+      process.env as Record<string, string | undefined>,
+    );
     if (!config)
       return {
         ok: false,
@@ -409,7 +504,13 @@ export const judge = action({
       gameId: args.gameId,
     });
     if (!pending)
-      return { ok: false, judged: 0, failed: 0, code: "GAME_NOT_FOUND", message: "No such game." };
+      return {
+        ok: false,
+        judged: 0,
+        failed: 0,
+        code: "GAME_NOT_FOUND",
+        message: "No such game.",
+      };
     const pair = pairByKey(pending.pairKey);
     if (!pair)
       return {
@@ -447,6 +548,21 @@ export const judge = action({
           failed += 1;
           lastCode = error.code;
           lastMessage = error.message;
+          await ctx.runMutation(internal.productEvents.ingest, {
+            eventId: `double-take:v1:judgment-refused:${args.gameId}:${pending.round}:${stableHash(`${item.submissionId}:${item.revision}:${error.code}`)}`,
+            eventName: "judgment",
+            environment: configuredProductEnvironment(),
+            occurredAt: Date.now(),
+            sessionId: args.gameId,
+            actorId: null,
+            props: {
+              roundIndex: pending.round,
+              coherence: "fail",
+              specificity: "fail",
+              refused: true,
+              refuseReason: error.code,
+            },
+          });
         } else {
           throw error;
         }
@@ -461,7 +577,9 @@ export const judge = action({
         judged,
         failed,
         code: lastCode ?? "JUDGE_UNAVAILABLE",
-        message: lastMessage ?? "The judge did not answer. Nothing was scored; retry is free.",
+        message:
+          lastMessage ??
+          "The judge did not answer. Nothing was scored; retry is free.",
       };
     return { ok: true, judged, failed: 0 };
   },
@@ -474,7 +592,11 @@ export const beginReveal = mutation({
     force: v.optional(v.boolean()),
     guestToken: v.optional(v.string()),
   },
-  returns: v.object({ ok: v.boolean(), code: v.optional(v.string()), message: v.optional(v.string()) }),
+  returns: v.object({
+    ok: v.boolean(),
+    code: v.optional(v.string()),
+    message: v.optional(v.string()),
+  }),
   handler: async (ctx, args) => {
     const { game, actor } = await gameAccess(ctx, args.gameId, args.guestToken);
     await requireActiveMatch(ctx, game.matchId, game.roomId);
@@ -483,10 +605,16 @@ export const beginReveal = mutation({
     const round = await roundRow(ctx, game);
     const submissions = await ctx.db
       .query("submissions")
-      .withIndex("by_game_round", (q) => q.eq("gameId", args.gameId).eq("round", game.round))
+      .withIndex("by_game_round", (q) =>
+        q.eq("gameId", args.gameId).eq("round", game.round),
+      )
       .take(16);
-    const judged = submissions.filter((submission) => submission.status === "judged");
-    const allJudged = submissions.length === game.players.length && judged.length === submissions.length;
+    const judged = submissions.filter(
+      (submission) => submission.status === "judged",
+    );
+    const allJudged =
+      submissions.length === game.players.length &&
+      judged.length === submissions.length;
     const deadlinePassed = Date.now() > round.deadline;
     const host = await isHostOf(ctx, game.roomId, actor.playerId);
     if (!allJudged && !deadlinePassed && !(args.force === true && host))
@@ -501,7 +629,9 @@ export const beginReveal = mutation({
       const adjudication = await ctx.db.get(submission.adjudicationId);
       if (!adjudication) continue;
       if (adjudication.normalized !== submission.normalized) continue;
-      const index = players.findIndex((player) => player.playerId === submission.playerId);
+      const index = players.findIndex(
+        (player) => player.playerId === submission.playerId,
+      );
       if (index < 0) continue;
       players[index] = {
         ...players[index]!,
@@ -510,6 +640,18 @@ export const beginReveal = mutation({
       };
     }
     await ctx.db.patch(args.gameId, { phase: "reveal", players });
+    await recordProductEvent(ctx, {
+      eventId: `double-take:v1:round-complete:${args.gameId}:${game.round}`,
+      eventName: "round_complete",
+      environment: configuredProductEnvironment(),
+      occurredAt: Date.now(),
+      sessionId: args.gameId,
+      actorId: null,
+      props: {
+        roundIndex: game.round,
+        score: players.reduce((total, player) => total + player.roundPoints, 0),
+      },
+    });
     return { ok: true };
   },
 });
@@ -532,27 +674,62 @@ export const advance = mutation({
     const round = await roundRow(ctx, game);
     const gracePassed = Date.now() > round.deadline + 45_000;
     if (!host && !gracePassed)
-      return { ok: false, code: "HOST_REQUIRED", message: "The host advances the table." };
+      return {
+        ok: false,
+        code: "HOST_REQUIRED",
+        message: "The host advances the table.",
+      };
     if (game.round >= ROUNDS_PER_MATCH) {
-      await ctx.db.patch(args.gameId, { phase: "finished", finishedAt: Date.now() });
+      await ctx.db.patch(args.gameId, {
+        phase: "finished",
+        finishedAt: Date.now(),
+      });
       await completeMatch(ctx, { matchId: game.matchId, actor });
       return { ok: true, finished: true };
     }
     const previous = pairByKey(game.pairKey);
-    const pair = pickPair(game.roomId, game.cycle, game.round + 1, previous?.key);
+    const pair = pickPair(
+      game.roomId,
+      game.cycle,
+      game.round + 1,
+      previous?.key,
+    );
     const startedAt = Date.now();
-    const players = game.players.map((player) => ({ ...player, roundPoints: 0 }));
+    const nextRound = game.round + 1;
+    const players = game.players.map((player) => ({
+      ...player,
+      roundPoints: 0,
+    }));
     await ctx.db.insert("rounds", {
       gameId: args.gameId,
-      round: game.round + 1,
+      round: nextRound,
       pairKey: pair.key,
       deadline: startedAt + WRITING_WINDOW_MS,
     });
     await ctx.db.patch(args.gameId, {
-      round: game.round + 1,
+      round: nextRound,
       pairKey: pair.key,
       phase: "writing",
       players,
+    });
+    const environment = configuredProductEnvironment();
+    await recordProductEvent(ctx, {
+      eventId: `double-take:v1:replay:${args.gameId}:${game.round}`,
+      eventName: "replay",
+      environment,
+      occurredAt: startedAt,
+      sessionId: args.gameId,
+      actorId: null,
+      props: { fromRound: game.round },
+    });
+    await recordProductEvent(ctx, {
+      eventId: `double-take:v1:round-start:${args.gameId}:${nextRound}`,
+      eventName: "round_start",
+      environment,
+      occurredAt: startedAt,
+      sessionId: args.gameId,
+      actorId: null,
+      props: { roundIndex: nextRound, contextPairId: pair.key },
     });
     return { ok: true, finished: false };
   },
@@ -580,14 +757,18 @@ export const forRoom = query({
         q.eq("roomId", args.roomId).eq("playerId", actor.playerId),
       )
       .unique();
-    if (!member || member.closedAt !== undefined) fail("NOT_A_ROOM_MEMBER", "Join the table first.");
+    if (!member || member.closedAt !== undefined)
+      fail("NOT_A_ROOM_MEMBER", "Join the table first.");
     const games = await ctx.db
       .query("games")
       .withIndex("by_room_cycle", (q) => q.eq("roomId", args.roomId))
       .order("desc")
       .take(1);
     const latest = games[0] ?? null;
-    return { gameId: latest ? latest._id : null, phase: latest ? latest.phase : null };
+    return {
+      gameId: latest ? latest._id : null,
+      phase: latest ? latest.phase : null,
+    };
   },
 });
 
@@ -620,13 +801,21 @@ export const view = query({
     }
     const round = await roundRow(ctx, game);
     const pair = pairByKey(game.pairKey);
-    if (!pair) fail("GAME_DATA_INVALID", "This round references an unknown pair.");
+    if (!pair)
+      fail("GAME_DATA_INVALID", "This round references an unknown pair.");
     const submissions = await ctx.db
       .query("submissions")
-      .withIndex("by_game_round", (q) => q.eq("gameId", args.gameId).eq("round", game.round))
+      .withIndex("by_game_round", (q) =>
+        q.eq("gameId", args.gameId).eq("round", game.round),
+      )
       .take(16);
-    const mine = submissions.find((submission) => submission.playerId === actor.playerId) ?? null;
-    const submittedBy = new Set(submissions.map((submission) => submission.playerId as string));
+    const mine =
+      submissions.find(
+        (submission) => submission.playerId === actor.playerId,
+      ) ?? null;
+    const submittedBy = new Set(
+      submissions.map((submission) => submission.playerId as string),
+    );
     const judgedBy = new Set(
       submissions
         .filter((submission) => submission.status === "judged")
@@ -653,7 +842,10 @@ export const view = query({
         }
         items.push({
           playerId: submission.playerId,
-          name: game.players.find((player) => player.playerId === submission.playerId)?.name ?? "Player",
+          name:
+            game.players.find(
+              (player) => player.playerId === submission.playerId,
+            )?.name ?? "Player",
           text: submission.text,
           status: submission.status,
           adjudication,
