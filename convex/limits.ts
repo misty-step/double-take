@@ -32,7 +32,8 @@ export async function chargeRateLimit(
   if (existing.count >= JUDGE_RATE_LIMIT.max) {
     throw new ConvexError({
       code: "SLOW_DOWN",
-      message: "That is a lot of judging in a short window. Wait a few minutes and try again.",
+      message:
+        "That is a lot of judging in a short window. Wait a few minutes and try again.",
     });
   }
   await ctx.db.patch(existing._id, { count: existing.count + 1 });

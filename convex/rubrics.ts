@@ -55,7 +55,7 @@ export type JudgeQuestion =
       criteria: Record<string, string | null>;
     };
 
-export function buildQuestions(pair: Pair): Record<string, JudgeQuestion> {
+export function buildQuestions(_pair: Pair): Record<string, JudgeQuestion> {
   return {
     plausibility_a: {
       type: "score",

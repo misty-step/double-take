@@ -20,7 +20,9 @@ describe("sentence validation", () => {
   });
 
   it("rejects a thirteenth word", () => {
-    const result = checkSentence("one two three four five six seven eight nine ten eleven twelve thirteen");
+    const result = checkSentence(
+      "one two three four five six seven eight nine ten eleven twelve thirteen",
+    );
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.code).toBe("TOO_MANY_WORDS");
@@ -33,7 +35,9 @@ describe("sentence validation", () => {
   });
 
   it("strips control characters and collapses whitespace", () => {
-    expect(sanitizeSentence("hello\u0000 \u0007 world\n\nagain")).toBe("hello world again");
+    expect(sanitizeSentence("hello\u0000 \u0007 world\n\nagain")).toBe(
+      "hello world again",
+    );
     expect(wordCount("  a   b ")).toBe(2);
   });
 
@@ -46,7 +50,12 @@ describe("sentence validation", () => {
 
 describe("weakest-reading scoring", () => {
   it("awards the weaker reading's points, not the average", () => {
-    const strong = composeResult({ plausibilityA: 3, plausibilityB: 3, coherence: 3, specificity: 2 });
+    const strong = composeResult({
+      plausibilityA: 3,
+      plausibilityB: 3,
+      coherence: 3,
+      specificity: 2,
+    });
     expect(strong).toMatchObject({ weaker: 3, points: 6, gate: "ok" });
 
     const lopsided = composeResult({
@@ -55,7 +64,11 @@ describe("weakest-reading scoring", () => {
       coherence: 2,
       specificity: 2,
     });
-    expect(lopsided).toMatchObject({ weaker: 0, points: 0, gate: "unreadable" });
+    expect(lopsided).toMatchObject({
+      weaker: 0,
+      points: 0,
+      gate: "unreadable",
+    });
 
     const surviving = composeResult({
       plausibilityA: 1,
@@ -107,7 +120,11 @@ describe("judge answer level mapping", () => {
   });
 
   it("prefers the most probable level when probabilities exist", () => {
-    expect(levelIndexFromProbabilities({ "0": 0, "1": 0.57, "2": 0.43, "3": 0 }, 4)).toBe(1);
-    expect(levelIndexFromProbabilities({ "0": 0, "1": 0, "2": 0, "3": 1 }, 4)).toBe(3);
+    expect(
+      levelIndexFromProbabilities({ "0": 0, "1": 0.57, "2": 0.43, "3": 0 }, 4),
+    ).toBe(1);
+    expect(
+      levelIndexFromProbabilities({ "0": 0, "1": 0, "2": 0, "3": 1 }, 4),
+    ).toBe(3);
   });
 });

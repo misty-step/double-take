@@ -6,11 +6,11 @@ in `pass` and in Convex deployment env.
 
 ## 1. Components
 
-| Piece | Target | Notes |
-| --- | --- | --- |
-| Frontend | Cloudflare Worker `double-take` | OpenNext build of this repo. Custom domain `doubletake.mistystep.io` via `{pattern, custom_domain: true}` (Poppycock precedent). No public exe.dev origin. |
-| Backend | Convex project `doubletake`, prod deployment `proper-albatross-726` | `https://proper-albatross-726.convex.cloud` and `.convex.site`. Isolated per-game project. |
-| Judge | Server-side only | OpenRouter decisions route. Key never reaches the browser. |
+| Piece    | Target                                                              | Notes                                                                                                                                                      |
+| -------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend | Cloudflare Worker `double-take`                                     | OpenNext build of this repo. Custom domain `doubletake.mistystep.io` via `{pattern, custom_domain: true}` (Poppycock precedent). No public exe.dev origin. |
+| Backend  | Convex project `doubletake`, prod deployment `proper-albatross-726` | `https://proper-albatross-726.convex.cloud` and `.convex.site`. Isolated per-game project.                                                                 |
+| Judge    | Server-side only                                                    | OpenRouter decisions route. Key never reaches the browser.                                                                                                 |
 
 ## 2. Build
 
@@ -36,6 +36,7 @@ Server env on the deployment (names only; already set by provisioning t_a342c750
 - `JEV_DECISIONS_URL=https://openrouter.ai/api/alpha/decisions`
 - `PARLOR_GUEST_TOKEN_AUDIENCE=doubletake`
 - `PARLOR_GUEST_TOKEN_KEYS` — key ring, `pass` label `workstation/DOUBLETAKE_PARLOR_GUEST_TOKEN_KEYS`.
+- `PRODUCT_ENVIRONMENT=production` — explicit product-event partition; never inferred.
 
 ## 4. Worker env (web server only)
 
@@ -45,6 +46,17 @@ These stay on the Worker. They never go into the client bundle or the browser.
 - `PARLOR_GUEST_TOKEN_KEYS` (same key ring as the backend)
 - `DOUBLETAKE_CONTINUITY_SECRET` — `pass` label `workstation/DOUBLETAKE_PARLOR_CONTINUITY_SECRET`.
 - `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL` — public, baked at build.
+- `APP_ENVIRONMENT=production`
+- `APP_RELEASE` — the exact 40-character candidate commit SHA.
+- `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` — the `double-take` project DSN.
+- `SENTRY_ORG=misty-step`, `SENTRY_PROJECT=double-take`, and `SENTRY_AUTH_TOKEN`
+  during the build that uploads source maps. The auth token is never a Worker runtime variable.
+
+`APP_ENVIRONMENT`, `PRODUCT_ENVIRONMENT`, and the Sentry project environment must
+agree. The SDK sends no default PII, removes request payloads, query strings,
+headers, users, extras, and breadcrumbs, and samples traces at 5%. Builds without
+upload credentials remain buildable but cannot be released: source-map upload and
+the exact release attribution are release readbacks.
 
 Guest session API (same-origin only, strict JSON body): `POST /api/guest` with
 `mode:"acquire"` (fresh guest), `mode:"refresh"` (+ advisory token, restores the
@@ -64,6 +76,13 @@ surfaces an explicit "Start as a new guest" recovery card.
    for the merged head.
 2. Independent review verdict PASS on the implementation card.
 3. Candidate browser evidence (see `evidence/`) plus production two-client journey.
+4. `GET /api/health` returns 200 with the exact release and reports the Convex
+   dependency `ok`; the backend route is `GET /health` on the configured
+   `.convex.site` origin. Neither response contains secrets or judge diagnostics.
+5. Sentry readback confirms the `double-take` project, `production` environment,
+   exact release, uploaded source maps, and a labeled test issue. Shared webhook
+   activation remains owned by `t_089aca22`; this repo only registers the prepared
+   `sentry-games` triage adapter in `config/game-operations.json`.
 
 ## 6. Rollback
 

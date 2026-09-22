@@ -31,9 +31,14 @@ import {
 const url = process.env.JEV_DECISIONS_URL;
 const model = process.env.JEV_MODEL;
 const apiKey = process.env.OPENROUTER_API_KEY;
-const repeats = Math.max(1, Number.parseInt(process.env.PROBE_REPEATS ?? "1", 10) || 1);
+const repeats = Math.max(
+  1,
+  Number.parseInt(process.env.PROBE_REPEATS ?? "1", 10) || 1,
+);
 if (!url || !model || !apiKey) {
-  console.error("Missing JEV_DECISIONS_URL / JEV_MODEL / OPENROUTER_API_KEY in the environment.");
+  console.error(
+    "Missing JEV_DECISIONS_URL / JEV_MODEL / OPENROUTER_API_KEY in the environment.",
+  );
   process.exit(2);
 }
 
@@ -57,7 +62,9 @@ const results = [];
 for (const [index, example] of CALIBRATION.entries()) {
   const pair = pairByKey(example.pairKey);
   if (!pair) {
-    console.log(`#${index + 1} ${example.pairKey}: no such pair in PAIRS — skipped`);
+    console.log(
+      `#${index + 1} ${example.pairKey}: no such pair in PAIRS — skipped`,
+    );
     continue;
   }
   const expected = example.expected;
@@ -74,7 +81,10 @@ for (const [index, example] of CALIBRATION.entries()) {
     try {
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(15000),
       });
@@ -96,14 +106,16 @@ for (const [index, example] of CALIBRATION.entries()) {
         specificity: levelFrom(answers.specificity),
       };
       const composed =
-        levels.plausibilityA === null || levels.plausibilityB === null ||
-        levels.coherence === null || levels.specificity === null
+        levels.plausibilityA === null ||
+        levels.plausibilityB === null ||
+        levels.coherence === null ||
+        levels.specificity === null
           ? null
           : composeResult(levels);
       if (composed === null) {
         console.log(
           `#${index + 1} ${example.pairKey} "${example.sentence}" [${repeat}/${repeats}]: ` +
-          `HTTP 200 — unscorable answers, excluded from the summary`,
+            `HTTP 200 — unscorable answers, excluded from the summary`,
         );
         live.push(null);
         continue;
@@ -116,10 +128,10 @@ for (const [index, example] of CALIBRATION.entries()) {
       };
       console.log(
         `#${index + 1} ${example.pairKey} "${example.sentence}" [${repeat}/${repeats}]: ` +
-        `HTTP 200 (${ms}ms) model=${parsed.model} rubric=${RUBRIC_VERSION} ` +
-        `levels=A${levels.plausibilityA}/B${levels.plausibilityB}/coh${levels.coherence}/spec${levels.specificity} ` +
-        `-> ${composed.points} pts (${composed.gate})` +
-        ` conf=[a:${confidences.a} b:${confidences.b} coh:${confidences.coherence} spec:${confidences.specificity}]`,
+          `HTTP 200 (${ms}ms) model=${parsed.model} rubric=${RUBRIC_VERSION} ` +
+          `levels=A${levels.plausibilityA}/B${levels.plausibilityB}/coh${levels.coherence}/spec${levels.specificity} ` +
+          `-> ${composed.points} pts (${composed.gate})` +
+          ` conf=[a:${confidences.a} b:${confidences.b} coh:${confidences.coherence} spec:${confidences.specificity}]`,
       );
       live.push({ levels, composed, confidences, model: parsed.model });
     } catch (error) {
@@ -141,30 +153,36 @@ for (const { index, example, expectedComposed, scored } of results) {
     `A${expectedLevels.plausibilityA}/B${expectedLevels.plausibilityB}/coh${expectedLevels.coherence}/spec${expectedLevels.specificity} ` +
     `-> ${expectedComposed.points} pts (${expectedComposed.gate})`;
   if (scored.length === 0) {
-    console.log(`#${index} ${example.pairKey}: no usable live runs; expected ${expectedText}`);
+    console.log(
+      `#${index} ${example.pairKey}: no usable live runs; expected ${expectedText}`,
+    );
     continue;
   }
-  const levelsMatch = scored.every(({ levels }) =>
-    levels.plausibilityA === expectedLevels.plausibilityA &&
-    levels.plausibilityB === expectedLevels.plausibilityB &&
-    levels.coherence === expectedLevels.coherence &&
-    levels.specificity === expectedLevels.specificity,
+  const levelsMatch = scored.every(
+    ({ levels }) =>
+      levels.plausibilityA === expectedLevels.plausibilityA &&
+      levels.plausibilityB === expectedLevels.plausibilityB &&
+      levels.coherence === expectedLevels.coherence &&
+      levels.specificity === expectedLevels.specificity,
   );
-  const pointsMatch = scored.every(({ composed }) =>
-    composed.points === expectedComposed.points,
+  const pointsMatch = scored.every(
+    ({ composed }) => composed.points === expectedComposed.points,
   );
-  const gatesMatch = scored.every(({ composed }) => composed.gate === expectedComposed.gate);
+  const gatesMatch = scored.every(
+    ({ composed }) => composed.gate === expectedComposed.gate,
+  );
   const verdict =
     levelsMatch && pointsMatch && gatesMatch
       ? "MATCH"
       : `DIVERGE (levels ${levelsMatch ? "match" : "differ"}; points ${pointsMatch ? "match" : "differ"}; gate ${gatesMatch ? "match" : "differ"})`;
   const liveText = scored
-    .map(({ levels, composed }) =>
-      `A${levels.plausibilityA}/B${levels.plausibilityB}/coh${levels.coherence}/spec${levels.specificity} -> ${composed.points} pts (${composed.gate})`,
+    .map(
+      ({ levels, composed }) =>
+        `A${levels.plausibilityA}/B${levels.plausibilityB}/coh${levels.coherence}/spec${levels.specificity} -> ${composed.points} pts (${composed.gate})`,
     )
     .join(" | ");
   console.log(
     `#${index} ${example.pairKey} "${example.sentence}": ${verdict} — ` +
-    `expected ${expectedText}; live: ${liveText}`,
+      `expected ${expectedText}; live: ${liveText}`,
   );
 }
