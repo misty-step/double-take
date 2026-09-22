@@ -44,6 +44,49 @@ export type ProductEventEnvelope = Omit<ProductEventInput, "occurredAt"> & {
   schemaVersion: 1;
 };
 
+/**
+ * Opaque session ids emitted by supervised production verification. This
+ * append-only manifest classifies retained rows without rewriting history.
+ */
+export const KNOWN_PRODUCTION_FIXTURE_SESSION_IDS = [
+  "003f32a7-a9eb-40e9-84d1-fa86dfc2e388",
+  "6ebee9fd-ff9c-4863-af2e-ac265bf241f8",
+  "j973mwd4yh635j5nwpmmfbe5a98exxat",
+  "d627b25a-ff94-472a-9655-45bcbfcf65b7",
+  "662f83c6-08b3-44fc-8690-9c27c460f584",
+  "j9758vn03aw0bbtjk2ttyy2tgd8exab9",
+  "55fae3b9-5265-43e4-a2d4-67324f628efb",
+  "2e990248-2d03-4784-9e16-384853487f51",
+  "j97bdehgb8bd47hdb77zw3ny2x8ewn1f",
+] as const;
+
+const productionFixtureSessionIds = new Set<string>(
+  KNOWN_PRODUCTION_FIXTURE_SESSION_IDS,
+);
+
+export function partitionProductEventsForAnalytics(
+  rows: readonly ProductEventEnvelope[],
+  environment: ProductEnvironment,
+): Readonly<{
+  fixtureEvents: readonly ProductEventEnvelope[];
+  genuineEvents: readonly ProductEventEnvelope[];
+}> {
+  const fixtureEvents: ProductEventEnvelope[] = [];
+  const genuineEvents: ProductEventEnvelope[] = [];
+  for (const row of rows) {
+    if (row.environment !== environment) continue;
+    if (
+      environment === "production" &&
+      productionFixtureSessionIds.has(row.sessionId)
+    ) {
+      fixtureEvents.push(row);
+    } else {
+      genuineEvents.push(row);
+    }
+  }
+  return { fixtureEvents, genuineEvents };
+}
+
 const PRIVATE_KEYS = new Set([
   "answer",
   "code",

@@ -5,6 +5,7 @@ import { internalMutation, internalQuery, mutation } from "./_generated/server";
 import {
   buildProductEvent,
   parseProductEnvironment,
+  partitionProductEventsForAnalytics,
   type ProductEnvironment,
   type ProductEventEnvelope,
   type ProductEventInput,
@@ -96,5 +97,45 @@ export const forSession = internalQuery({
       ({ _id: _ignoredId, _creationTime: _ignoredTime, ...event }) =>
         event as ProductEventEnvelope,
     );
+  },
+});
+
+/** Aggregate-only operational readback with exact retained-fixture exclusion. */
+export const summary = internalQuery({
+  args: {
+    environment: v.union(
+      v.literal("production"),
+      v.literal("staging"),
+      v.literal("test"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("productEvents")
+      .filter((query) => query.eq(query.field("environment"), args.environment))
+      .order("desc")
+      .take(1_000);
+    const events = rows.map(
+      ({ _id: _ignoredId, _creationTime: _ignoredTime, ...event }) =>
+        event as ProductEventEnvelope,
+    );
+    const partition = partitionProductEventsForAnalytics(
+      events,
+      args.environment,
+    );
+    const eventCounts: Record<string, number> = {};
+    for (const event of partition.genuineEvents) {
+      eventCounts[event.eventName] = (eventCounts[event.eventName] ?? 0) + 1;
+    }
+    return {
+      environment: args.environment,
+      sampledEvents: events.filter(
+        (event) => event.environment === args.environment,
+      ).length,
+      fixtureEventsExcluded: partition.fixtureEvents.length,
+      genuineEventsRetained: partition.genuineEvents.length,
+      truncated: rows.length === 1_000,
+      eventCounts,
+    };
   },
 });

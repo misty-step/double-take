@@ -72,4 +72,39 @@ describe("Convex product-event storage", () => {
       }),
     ).rejects.toThrow(/text/);
   });
+
+  it("excludes retained production fixtures from the operational summary", async () => {
+    const t = convexTest(schema, modules);
+    const fixtureSessionId = "j97bdehgb8bd47hdb77zw3ny2x8ewn1f";
+    for (const [eventId, eventSessionId] of [
+      ["double-take:v1:submission:summary-fixture", fixtureSessionId],
+      [
+        "double-take:v1:submission:summary-genuine",
+        `${fixtureSessionId}-genuine-control`,
+      ],
+    ] as const) {
+      await t.mutation(internal.productEvents.ingest, {
+        eventId,
+        eventName: "submission",
+        environment: "production",
+        occurredAt: Date.parse("2026-09-22T15:11:22.605Z"),
+        sessionId: eventSessionId,
+        actorId: null,
+        props: { roundIndex: 1, wordCount: 8 },
+      });
+    }
+
+    const summary = await t.query(internal.productEvents.summary, {
+      environment: "production",
+    });
+
+    expect(summary).toEqual({
+      environment: "production",
+      sampledEvents: 2,
+      fixtureEventsExcluded: 1,
+      genuineEventsRetained: 1,
+      truncated: false,
+      eventCounts: { submission: 1 },
+    });
+  });
 });

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildProductEvent,
+  KNOWN_PRODUCTION_FIXTURE_SESSION_IDS,
   parseProductEnvironment,
+  partitionProductEventsForAnalytics,
   type ProductEventInput,
 } from "../lib/product-events";
 
@@ -133,5 +135,38 @@ describe("product event contract", () => {
         },
       } as ProductEventInput),
     ).toThrow(/refuseReason/);
+  });
+
+  it("excludes exact supervised production fixtures and retains genuine traffic", () => {
+    const fixtureEvents = KNOWN_PRODUCTION_FIXTURE_SESSION_IDS.map(
+      (sessionId, index) =>
+        buildProductEvent({
+          ...base,
+          eventId: `double-take:v1:submission:fixture:${index}`,
+          environment: "production",
+          sessionId,
+          eventName: "submission",
+          props: { roundIndex: 1, wordCount: 8 },
+        }),
+    );
+    const genuineEvent = buildProductEvent({
+      ...base,
+      eventId: "double-take:v1:submission:genuine:1",
+      environment: "production",
+      sessionId: `${KNOWN_PRODUCTION_FIXTURE_SESSION_IDS.at(-1)}-genuine-control`,
+      eventName: "submission",
+      props: { roundIndex: 1, wordCount: 8 },
+    });
+    const rows = [...fixtureEvents, genuineEvent];
+
+    const partition = partitionProductEventsForAnalytics(rows, "production");
+
+    expect(partition.fixtureEvents.map((event) => event.eventId)).toEqual(
+      fixtureEvents.map((event) => event.eventId),
+    );
+    expect(partition.genuineEvents.map((event) => event.eventId)).toEqual([
+      genuineEvent.eventId,
+    ]);
+    expect(rows).toHaveLength(KNOWN_PRODUCTION_FIXTURE_SESSION_IDS.length + 1);
   });
 });
