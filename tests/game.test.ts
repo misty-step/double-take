@@ -138,8 +138,9 @@ describe("double take game", () => {
     expect(view.phase).toBe("reveal");
     expect(view.reveal?.submissions).toHaveLength(2);
     for (const item of view.reveal!.submissions) {
-      expect(item.adjudication?.gate).toBe("unreadable");
       expect(item.adjudication?.points).toBe(0);
+      expect(item.adjudication?.note).toBe("One reading collapses in its context.");
+      expect(JSON.stringify(item.adjudication)).not.toMatch(/confidence|rubric|model|gate/i);
     }
     const scored = view.players.find((p) => p.seatIndex === 0);
     expect(scored?.score).toBe(0);

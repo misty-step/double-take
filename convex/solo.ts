@@ -8,11 +8,11 @@
 import { resolvePlayer } from "@parlor/convex";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 import { action, internalMutation } from "./_generated/server";
 import { pairByKey } from "./content";
 import { JudgeUnavailableError, readJudgeConfig, runAdjudication } from "./judge";
 import { checkSentence } from "./rules";
+import { toPlayerAdjudication, type PlayerAdjudication } from "../lib/player-adjudication";
 
 export const ensurePlayer = internalMutation({
   args: { guestToken: v.optional(v.string()) },
@@ -99,31 +99,11 @@ export const record = internalMutation({
   },
 });
 
-type SoloLevels = {
-  plausibilityA: number;
-  plausibilityB: number;
-  coherence: number;
-  specificity: number;
-};
-
-type SoloJudgment = {
-  adjudicationId: Id<"adjudications">;
-  reused: boolean;
-  rubricVersion: string;
-  model: string;
-  levels: SoloLevels;
-  weaker: number;
-  points: number;
-  gate: string;
-  gateMessage: string;
-  confidenceMin: number;
-};
-
 type SoloJudgeOutcome = {
   ok: boolean;
   code?: string;
   message?: string;
-  result?: SoloJudgment & { text: string };
+  result?: PlayerAdjudication & { text: string };
 };
 
 export const judge = action({
@@ -182,7 +162,7 @@ export const judge = action({
         confidenceMin: draft.confidenceMin,
         rawJson: draft.rawJson,
       });
-      return { ok: true, result: { text: check.text, ...retained } };
+      return { ok: true, result: { text: check.text, ...toPlayerAdjudication(retained) } };
     } catch (error) {
       if (error instanceof JudgeUnavailableError) {
         // A judge outage must not cost a charge; the retry stays free.

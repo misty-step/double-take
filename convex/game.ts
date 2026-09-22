@@ -18,6 +18,7 @@ import { PAIRS, pairByKey } from "./content";
 import { gamePhase } from "./schema";
 import { JudgeUnavailableError, readJudgeConfig, runAdjudication } from "./judge";
 import { chargeRateLimit } from "./limits";
+import { toPlayerAdjudication } from "../lib/player-adjudication";
 import {
   checkSentence,
   MAX_SUBMISSIONS_PER_ROUND,
@@ -648,16 +649,7 @@ export const view = query({
         let adjudication = null;
         if (submission.adjudicationId) {
           const row = await ctx.db.get(submission.adjudicationId);
-          if (row)
-            adjudication = {
-              levels: row.levels,
-              weaker: row.weaker,
-              points: row.points,
-              gate: row.gate,
-              gateMessage: row.gateMessage,
-              confidenceMin: row.confidenceMin,
-              rubricVersion: row.rubricVersion,
-            };
+          if (row) adjudication = toPlayerAdjudication(row);
         }
         items.push({
           playerId: submission.playerId,

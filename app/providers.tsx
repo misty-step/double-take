@@ -53,11 +53,8 @@ export function Providers({ children }: { children: ReactNode }) {
   if (!client)
     return (
       <main className="setup-error">
-        <h1>The table isn’t set yet.</h1>
-        <p>
-          Run <code>pnpm bootstrap</code>, then <code>pnpm dev</code>. The server needs
-          NEXT_PUBLIC_CONVEX_URL. No mock game is running.
-        </p>
+        <h1>The press isn’t ready.</h1>
+        <p>Try again in a moment. Nothing you wrote was sent.</p>
       </main>
     );
   return (

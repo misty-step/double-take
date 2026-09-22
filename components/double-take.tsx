@@ -5,32 +5,42 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHeartbeat } from "@parlor/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { INSTRUCTIONS, PAIRS, pairByKey } from "../convex/content";
+import { PAIRS, pairByKey } from "../convex/content";
 import { MAX_SUBMISSIONS_PER_ROUND, MAX_WORDS, wordCount } from "../convex/rules";
+import type { PlayerAdjudication } from "../lib/player-adjudication";
 import { showsGameTable } from "../lib/room-view";
 import { useGuest, resetIssuer } from "../app/providers";
 
 type RoomId = Id<"rooms">;
 type GameId = Id<"games">;
 
-const LEVEL_NAMES = {
-  plausibility: [
-    "Impossible here",
-    "Strained here",
-    "Natural here",
-    "Unmistakable here",
-  ],
-  coherence: [
-    "Two stitched halves",
-    "Fragmentary",
-    "One coherent sentence",
-    "A voice, not a puzzle",
-  ],
-  specificity: ["Empty", "Vague", "Concrete", "Vivid"],
-} as const;
+const READING_NAMES = ["Doesn’t land", "A stretch", "Reads naturally", "Lands perfectly"] as const;
 
 function formatPoints(points: number): string {
   return `${points} ${points === 1 ? "pt" : "pts"}`;
+}
+
+export function ImpressionMark({ size = "small" }: { size?: "small" | "large" }) {
+  return (
+    <img
+      className={`impression-mark impression-mark-${size}`}
+      src={size === "small" ? "/brand/double-take-mark-32.svg" : "/brand/double-take-mark.svg"}
+      width={size === "small" ? 32 : 128}
+      height={size === "small" ? 32 : 128}
+      alt=""
+    />
+  );
+}
+
+export function BrandHeader() {
+  return (
+    <header className="brand-header" aria-label="Double Take">
+      <ImpressionMark />
+      <span>Double Take</span>
+      <span className="brand-header-rule" aria-hidden="true" />
+      <span className="brand-header-note">Two impressions</span>
+    </header>
+  );
 }
 
 function useSound() {
@@ -70,7 +80,7 @@ function useSound() {
 }
 
 /** One sentence, shown under one named framing, then the other. */
-function RevealStage({
+export function RevealStage({
   text,
   label,
   setting,
@@ -82,85 +92,60 @@ function RevealStage({
   stage: "a" | "b";
 }) {
   return (
-    <div className={stage === "a" ? "atmosphere-a fade-in" : "atmosphere-b fade-in"}>
+    <div className={stage === "a" ? "impression first fade-in" : "impression second fade-in"}>
       <div className="reading-context">
-        {stage === "a" ? "First reading" : "Second reading"} — <strong>{label}</strong>
+        <span>{stage === "a" ? "First impression" : "Second impression"}</span>
+        <strong>{label}</strong>
       </div>
-      <div className="reading">{text}</div>
-      {setting && <div className="small muted">{setting}</div>}
+      <blockquote className="reading">“{text}”</blockquote>
+      {setting && <p className="reading-setting">{setting}</p>}
     </div>
   );
 }
 
-function ScoreSummary({
-  adjudication,
-}: {
-  adjudication: {
-    levels: { plausibilityA: number; plausibilityB: number; coherence: number; specificity: number };
-    weaker: number;
-    points: number;
-    gate: string;
-    gateMessage: string;
-    confidenceMin: number;
-    rubricVersion: string;
-  };
-}) {
-  const { levels } = adjudication;
+export function ScoreSummary({ adjudication }: { adjudication: PlayerAdjudication }) {
   return (
-    <div className="small">
-      <div className="score-line">
+    <div className="score-summary">
+      <div className="reading-scores">
         <span>
-          reading A: <strong>{LEVEL_NAMES.plausibility[levels.plausibilityA]}</strong>
+          <i className="ink-dot red" />First <strong>{READING_NAMES[adjudication.readings.first]}</strong>
         </span>
         <span>
-          reading B: <strong>{LEVEL_NAMES.plausibility[levels.plausibilityB]}</strong>
-        </span>
-      </div>
-      <div className="score-line">
-        <span>
-          coherence: <strong>{LEVEL_NAMES.coherence[levels.coherence]}</strong>
-        </span>
-        <span>
-          specificity: <strong>{LEVEL_NAMES.specificity[levels.specificity]}</strong>
+          <i className="ink-dot blue" />Second <strong>{READING_NAMES[adjudication.readings.second]}</strong>
         </span>
       </div>
-      <div className="score-line">
+      <div className="score-verdict">
         <span className="points">{formatPoints(adjudication.points)}</span>
-        <span>{adjudication.gateMessage}</span>
+        <span>{adjudication.note}</span>
       </div>
-      <details className="score-details">
-        <summary className="small muted">Scoring details</summary>
-        <div className="score-line muted small">
-          <span>weaker reading sets the points</span>
-          <span>
-            judge confidence {Math.round(adjudication.confidenceMin * 100)}% · {adjudication.rubricVersion}
-          </span>
-        </div>
-      </details>
     </div>
   );
 }
 
-function PairCards({
+export function PairCards({
   pair,
 }: {
   pair: { title: string; contextA: { label: string; setting: string }; contextB: { label: string; setting: string } };
 }) {
   return (
-    <div className="card card-soft">
+    <section className="card pair-card">
       <div className="row">
         <h2>{pair.title}</h2>
-        <span className="pill">one line, two readings</span>
+        <span className="pill">one line · two scenes</span>
       </div>
-      <div className="context">
-        <strong>{pair.contextA.label}</strong>
-        <p className="small muted">{pair.contextA.setting}</p>
+      <div className="context-grid">
+        <div className="context first-context">
+          <span className="impression-number">01</span>
+          <strong>{pair.contextA.label}</strong>
+          <p>{pair.contextA.setting}</p>
+        </div>
+        <div className="context second-context">
+          <span className="impression-number">02</span>
+          <strong>{pair.contextB.label}</strong>
+          <p>{pair.contextB.setting}</p>
+        </div>
       </div>
-      <div className="context b">
-        <strong>{pair.contextB.label}</strong>
-        <p className="small muted">{pair.contextB.setting}</p>
-      </div>
-    </div>
+    </section>
   );
 }
 
@@ -171,7 +156,7 @@ function Writer({
   busy,
   hint,
   initialText = "",
-  submitLabel = "Submit the line",
+  submitLabel = "Print my line",
 }: {
   pairKey: string;
   onSubmit: (text: string) => Promise<{ ok: boolean; code?: string; message?: string }>;
@@ -196,14 +181,14 @@ function Writer({
       }}
     >
       <label htmlFor="line" className="small muted">
-        Your line for both contexts. {hint ?? ""}
+        One line for both scenes. {hint ?? ""}
       </label>
       <textarea
         id="line"
         value={text}
         maxLength={160}
         disabled={disabled || busy}
-        placeholder="Write one sentence that means something in both."
+        placeholder="Write the line that lands twice…"
         onChange={(event) => setText(event.target.value)}
       />
       <div className="row" style={{ marginTop: "0.5rem" }}>
@@ -215,7 +200,7 @@ function Writer({
           type="submit"
           disabled={disabled || busy || tooLong || words === 0}
         >
-          {busy ? "Sending…" : submitLabel}
+          {busy ? "Printing…" : submitLabel}
         </button>
       </div>
       {error && <div className="error">{error}</div>}
@@ -230,16 +215,7 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
   const [pairIndex, setPairIndex] = useState(() => Math.floor(Math.random() * PAIRS.length));
   const pair = PAIRS[pairIndex]!;
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<null | {
-    text: string;
-    levels: { plausibilityA: number; plausibilityB: number; coherence: number; specificity: number };
-    weaker: number;
-    points: number;
-    gate: string;
-    gateMessage: string;
-    confidenceMin: number;
-    rubricVersion: string;
-  }>(null);
+  const [result, setResult] = useState<null | (PlayerAdjudication & { text: string })>(null);
   const [failure, setFailure] = useState<null | { code: string; message: string }>(null);
   const [stage, setStage] = useState<"a" | "b">("a");
 
@@ -284,9 +260,7 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
         />
       )}
       {failure && (
-        <div className="error">
-          {failure.message} Nothing was scored, and the retry is free. ({failure.code})
-        </div>
+        <div className="error">{failure.message} Nothing was scored. Try again when the press is ready.</div>
       )}
       {result && (
         <div className="card">
@@ -306,7 +280,7 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
                   sound.chime(false);
                 }}
               >
-                Read it the other way
+                Second impression
               </button>
             ) : (
               <button
@@ -315,7 +289,7 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
                   setStage("a");
                 }}
               >
-                Back to the first reading
+                First impression
               </button>
             )}
             <button
@@ -338,7 +312,7 @@ function SoloPractice({ onExit }: { onExit: () => void }) {
               New pair
             </button>
             <button className="button ghost" onClick={sound.toggle}>
-              {sound.enabled ? "Sound on" : "Sound off"}
+              {sound.enabled ? "Sound: on" : "Sound: off"}
             </button>
           </div>
           <div style={{ marginTop: "1rem" }}>
@@ -446,9 +420,7 @@ function RoomGame({
         </button>
       </div>
       {notice && (
-        <div className="error">
-          {notice.message} Nothing was scored, and the retry is free. ({notice.code})
-        </div>
+        <div className="error">{notice.message} Nothing was scored. Try again when the press is ready.</div>
       )}
       {game.phase === "writing" && (
         <>
@@ -460,7 +432,7 @@ function RoomGame({
               busy={busy}
               disabled={timeUp || revisionsLeft === 0}
               initialText={mine?.text ?? ""}
-              submitLabel={mine ? "Revise the line" : "Submit the line"}
+              submitLabel={mine ? "Reprint my line" : "Print my line"}
               hint={
                 timeUp
                   ? "The writing window closed. The reveal comes next."
@@ -531,7 +503,7 @@ function RoomGame({
                 Reveal now (host)
               </button>
               <button className="button ghost" onClick={sound.toggle}>
-                {sound.enabled ? "Sound on" : "Sound off"}
+                {sound.enabled ? "Sound: on" : "Sound: off"}
               </button>
             </div>
           </div>
@@ -575,11 +547,11 @@ function RoomGame({
                       sound.chime(false);
                     }}
                   >
-                    Same words, the other reading
+                    Second impression
                   </button>
                 ) : (
                   <button className="button" onClick={() => setStage("a")}>
-                    Back to the first reading
+                    First impression
                   </button>
                 )}
               </div>
@@ -594,7 +566,7 @@ function RoomGame({
                     <span className="points">{formatPoints(item.adjudication.points)}</span>
                   )}
                 </div>
-                <p className="reading" style={{ fontSize: "1.2rem" }}>
+                <p className="submission-line">
                   “{item.text}”
                 </p>
                 {item.adjudication ? (
@@ -639,7 +611,7 @@ function RoomGame({
                   }
                 }}
               >
-                {busy ? "Dealing…" : "Play again (host)"}
+                {busy ? "Setting the press…" : "Play again"}
               </button>
             )}
           </div>
@@ -702,7 +674,7 @@ function Room({ roomId, token, onExit }: { roomId: RoomId; token: string; onExit
         <div className="card">
           <h2>Ready when you are</h2>
           <p className="small muted">
-            Two to twelve players. Three rounds. The weaker reading of each line wins the round.
+            Two to twelve players · three rounds · the weaker impression sets the score.
           </p>
           <button
             className="button primary"
@@ -722,7 +694,7 @@ function Room({ roomId, token, onExit }: { roomId: RoomId; token: string; onExit
             {isHost
               ? state.members.length < 2
                 ? "Waiting for one more player"
-                : "Start the table"
+                : "Start printing"
               : "Waiting for the host"}
           </button>
         </div>
@@ -749,32 +721,51 @@ function Entrance({
   if (mode === "solo") return <SoloPractice onExit={() => setMode("none")} />;
 
   return (
-    <div>
-      <div className="card">
-        <h1>Double Take</h1>
-        <p>{INSTRUCTIONS.premise}</p>
-        <ul className="small muted">
-          {INSTRUCTIONS.steps.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ul>
-        <div className="button-row">
-          <button className="button primary" onClick={() => setMode("solo")}>
-            Practice alone
-          </button>
-          <button className="button" onClick={() => setMode("create")}>
-            Create a table
-          </button>
-          <button className="button" onClick={() => setMode("join")}>
-            Join a table
-          </button>
+    <div className="entrance">
+      <section className="entrance-sheet">
+        <div className="hero-copy">
+          <div className="section-kicker">A two-reading party game</div>
+          <h1>
+            One line.<br />
+            <span>Two impressions.</span>
+          </h1>
+          <p className="hero-lede">
+            Make the same words read true in two completely different scenes.
+          </p>
+          <div className="button-row entrance-actions">
+            <button className="button primary" onClick={() => setMode("solo")}>
+              Practice
+            </button>
+            <button className="button" onClick={() => setMode("create")}>
+              Open a table
+            </button>
+            <button className="button ghost" onClick={() => setMode("join")}>
+              Join a table
+            </button>
+          </div>
         </div>
-      </div>
+        <div className="hero-mark" aria-hidden="true">
+          <ImpressionMark size="large" />
+          <span className="registration-note">MISREGISTERED ON PURPOSE</span>
+        </div>
+      </section>
+      <details className="rule-card" open={mode === "none"}>
+        <summary>
+          Say it twice <span>How to play</span>
+        </summary>
+        <div className="rule-steps">
+          <p><b>01</b><span>Read the two scenes.</span></p>
+          <p><b>02</b><span>Write one sentence that belongs in both.</span></p>
+          <p><b>03</b><span>Reveal both impressions. The weaker one sets the score.</span></p>
+        </div>
+      </details>
       {mode !== "none" && (
-        <div className="card">
-          <label className="small muted" htmlFor="name">
-            Your name at the table
-          </label>
+        <section className="card press-form fade-in">
+          <div className="section-kicker">
+            {mode === "create" ? "Open a table" : "Join the press run"}
+          </div>
+          <h2>{mode === "create" ? "Name your seat" : "Bring your table code"}</h2>
+          <label htmlFor="name">Your name</label>
           <input
             id="name"
             value={name}
@@ -784,9 +775,7 @@ function Entrance({
           />
           {mode === "join" && (
             <>
-              <label className="small muted" htmlFor="code" style={{ display: "block", marginTop: "0.75rem" }}>
-                Table code
-              </label>
+              <label htmlFor="code">Table code</label>
               <input
                 id="code"
                 value={code}
@@ -796,7 +785,7 @@ function Entrance({
               />
             </>
           )}
-          <div className="button-row" style={{ marginTop: "0.75rem" }}>
+          <div className="button-row form-actions">
             <button
               className="button primary"
               disabled={busy || name.trim().length === 0}
@@ -810,7 +799,7 @@ function Entrance({
                   } else {
                     const result = await join({ displayName: name.trim(), code, guestToken: token });
                     if (!result.ok) {
-                      setError(`Could not join: ${result.code}.`);
+                      setError("That table wasn’t found. Check the code and try again.");
                     } else {
                       onRoom(result.roomId);
                     }
@@ -822,14 +811,14 @@ function Entrance({
                 }
               }}
             >
-              {busy ? "Working…" : mode === "create" ? "Open the table" : "Join"}
+              {busy ? "Setting the press…" : mode === "create" ? "Open the table" : "Take my seat"}
             </button>
             <button className="button ghost" onClick={() => setMode("none")}>
               Cancel
             </button>
           </div>
           {error && <div className="error">{error}</div>}
-        </div>
+        </section>
       )}
     </div>
   );
@@ -862,7 +851,11 @@ export function DoubleTake() {
   if (!mounted || (!guest.credential && (guest.loading || !guest.error)))
     return (
       <main className="stage">
-        <div className="card">Setting the table…</div>
+        <BrandHeader />
+        <div className="card loading-card">
+          <span className="loading-impressions" aria-hidden="true" />
+          Setting the press…
+        </div>
       </main>
     );
 
@@ -873,15 +866,16 @@ export function DoubleTake() {
         : "Your seat could not be restored. Start as a new guest below.";
     return (
       <main className="stage">
+        <BrandHeader />
         <div className="card">
-          <h2>Your previous seat could not be restored.</h2>
+          <div className="section-kicker">Fresh sheet needed</div>
+          <h2>We couldn’t restore your previous seat.</h2>
           <p className="small muted">{message}</p>
           <p className="small muted">
-            Starting fresh creates a new guest identity. Your previous seat, room seats, and
-            scores cannot be recovered.
+            Starting fresh makes a new seat. It won’t restore the old table or its scores.
           </p>
           <button className="button primary" onClick={startFresh} disabled={resetting}>
-            {resetting ? "Setting a fresh table…" : "Start as a new guest"}
+            {resetting ? "Preparing a fresh sheet…" : "Start fresh"}
           </button>
           {resetError && <div className="error">{resetError}</div>}
         </div>
@@ -891,6 +885,7 @@ export function DoubleTake() {
 
   return (
     <main className="stage">
+      <BrandHeader />
       {roomId ? (
         <Room roomId={roomId} token={guest.credential} onExit={() => setRoomId(null)} />
       ) : (
