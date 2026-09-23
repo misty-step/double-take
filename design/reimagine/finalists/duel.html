@@ -1,0 +1,383 @@
+<!doctype html>
+<!-- Hash states: #state=start, #state=write, #state=judging, #state=own-reveal-a, #state=own-reveal-b, #state=link-copied, #as=friend&from=Ada (invite), #state=invite, #state=friend-write, #state=duel-a, #state=duel-b, #state=duel-tie, #state=error. Add #fail=1 before playing to rehearse a failed submission. #pair=1 selects the second pair. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Double Take</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <style>
+    :root { font-family: Figtree, Arial, sans-serif; color: #000; background: #fff; font-synthesis: none; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    button, textarea, input { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .42; }
+    :focus-visible { outline: 3px solid #1461ba; outline-offset: 4px; }
+    #app { min-height: 100svh; }
+    .shell { width: min(100% - 36px, 560px); margin: 0 auto; padding: 30px 0 46px; }
+    .shell.wide { width: min(100% - 36px, 990px); }
+    .mast { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: clamp(36px, 9vh, 84px); }
+    .brand { font-weight: 800; font-size: 18px; letter-spacing: -.055em; }
+    .mast-note { font-size: 13px; color: #515151; }
+    .intro { padding-top: clamp(25px, 10vh, 100px); }
+    .title { font-size: clamp(78px, 19vw, 132px); line-height: .82; letter-spacing: -.095em; font-weight: 800; margin: 0 0 38px -.07em; }
+    .title span { display: block; }
+    .lede { font-size: clamp(19px, 4.9vw, 23px); line-height: 1.34; max-width: 460px; margin: 0 0 36px; letter-spacing: -.025em; }
+    .action { display: inline-flex; align-items: center; justify-content: center; border: 2px solid #000; min-height: 52px; padding: 12px 23px; background: #000; color: #fff; font-size: 16px; font-weight: 800; border-radius: 3px; text-align: center; }
+    .action:hover:not(:disabled) { background: #303030; }
+    .action.secondary { background: #fff; color: #000; }
+    .action.secondary:hover:not(:disabled) { background: #f0f0f0; }
+    .stage-title { font-size: clamp(28px, 7.5vw, 42px); line-height: 1.08; letter-spacing: -.055em; margin: 0 0 26px; font-weight: 800; }
+    .world { min-height: 124px; padding: 24px clamp(24px, 6vw, 37px); display: flex; align-items: center; color: var(--ink); background: var(--bg); }
+    .world-name { font-size: clamp(25px, 6vw, 36px); letter-spacing: -.055em; font-weight: 800; line-height: 1.07; }
+    .writing { padding: 23px 0 25px; }
+    .writing label { display: block; font-size: 16px; font-weight: 800; margin-bottom: 12px; }
+    textarea { width: 100%; min-height: 115px; resize: vertical; padding: 14px 15px; border: 2px solid #000; border-radius: 3px; font-family: "Source Serif 4", Georgia, serif; font-size: 24px; line-height: 1.28; background: #fff; color: #000; }
+    .writing-foot { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; min-height: 38px; padding-top: 8px; font-size: 14px; }
+    .counter { color: #515151; white-space: nowrap; }
+    .counter.over { color: #aa1d23; font-weight: 800; }
+    .feedback { max-width: 330px; color: #9e111b; font-weight: 600; line-height: 1.35; }
+    .write-action { margin-top: 27px; }
+    .waiting { display: grid; place-content: center; min-height: 420px; }
+    .waiting p { font-family: "Source Serif 4", Georgia, serif; font-size: clamp(35px, 10vw, 58px); line-height: 1.06; margin: 0; max-width: 450px; }
+    .pulse { display: inline-block; height: .2em; width: .2em; margin-left: .12em; border-radius: 50%; background: currentColor; vertical-align: baseline; animation: beat 1s ease-in-out infinite alternate; }
+    @keyframes beat { to { opacity: .15; } }
+    .reading-heading { font-size: 17px; font-weight: 800; margin: 0 0 14px; }
+    .reading { background: var(--bg); color: var(--ink); min-height: 330px; padding: 27px clamp(25px, 6vw, 38px) 30px; display: flex; flex-direction: column; transition: background-color .56s ease, color .56s ease; }
+    .reading .context { font-size: 16px; font-weight: 800; letter-spacing: -.03em; }
+    .reading .line { font-family: "Source Serif 4", Georgia, serif; font-size: clamp(34px, 8.8vw, 48px); line-height: 1.12; letter-spacing: -.035em; margin: auto 0; overflow-wrap: anywhere; }
+    .reading .side-word { font-size: 15px; font-weight: 800; }
+    .result { display: flex; justify-content: space-between; gap: 20px; align-items: baseline; border-bottom: 1px solid #aaa; padding: 17px 0; font-size: 15px; }
+    .result strong { font-size: 18px; font-weight: 800; }
+    .result-rank { font-size: clamp(30px, 7.5vw, 44px); line-height: 1.1; letter-spacing: -.055em; font-weight: 800; margin: 26px 0; }
+    .reading-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 27px; }
+    .link-status { font-size: 17px; line-height: 1.4; font-weight: 600; margin: 23px 0; max-width: 480px; }
+    .manual-link { display: block; width: 100%; border: 1px solid #777; padding: 12px; font-size: 14px; margin: 0 0 20px; }
+    .invitation { padding-top: clamp(70px, 15vh, 155px); }
+    .invitation h1 { font-size: clamp(49px, 11vw, 76px); letter-spacing: -.075em; line-height: .99; margin: 0 0 26px; font-weight: 800; }
+    .invitation p { font-size: 19px; line-height: 1.4; max-width: 400px; margin: 0 0 35px; }
+    .duel-heading { font-size: clamp(30px, 7.5vw, 44px); line-height: 1.08; letter-spacing: -.055em; font-weight: 800; margin: 0 0 22px; }
+    .duel-cards { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .duel-cards .reading { min-height: 292px; }
+    .duel-cards .reading .line { font-size: clamp(32px, 8vw, 47px); }
+    .duel-detail { display: grid; gap: 3px; padding: 14px 0 0; font-size: 14px; }
+    .duel-detail b { font-size: 17px; }
+    [hidden] { display: none !important; }
+    .outcome { margin: 28px 0 0; font-size: clamp(30px, 7.4vw, 48px); line-height: 1.06; letter-spacing: -.055em; font-weight: 800; }
+    .quiet { font-size: 15px; line-height: 1.4; color: #454545; margin: 12px 0 0; }
+    @media (min-width: 720px) {
+      .shell { padding-top: 36px; }
+      .duel-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+      .duel-cards .reading { min-height: 370px; }
+      .duel-cards .reading .line { font-size: clamp(36px, 3.6vw, 52px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+  <script src="../shared/game.js"></script>
+</head>
+<body>
+  <main id="app"></main>
+  <script>
+    (() => {
+      "use strict";
+      const app = document.getElementById("app");
+      const DEMO_LINK = "https://doubletake.example/d/7Q2K";
+      const supported = new Set(["start", "write", "judging", "own-reveal-a", "own-reveal-b", "link-copied", "invite", "friend-write", "duel-a", "duel-b", "duel-tie", "error"]);
+      const initial = new URLSearchParams(location.hash.slice(1));
+      let failPending = initial.get("fail") === "1";
+      let pairIndex = initial.get("pair") === "1" ? 1 : 0;
+      let role = initial.get("as") === "friend" || ["invite", "friend-write", "duel-a", "duel-b", "duel-tie"].includes(initial.get("state")) ? "friend" : "sender";
+      let senderName = (initial.get("from") || "Ada").slice(0, 32);
+      let draft = "";
+      let own = null;
+      let ownResult = null;
+      let rejected = "";
+      let copySucceeded = true;
+      let requestNumber = 0;
+      const pair = () => DT.PAIRS[pairIndex];
+      const route = () => {
+        const params = new URLSearchParams(location.hash.slice(1));
+        const state = params.get("state") || (params.get("as") === "friend" ? "invite" : "start");
+        return supported.has(state) ? state : "start";
+      };
+      const demoLine = () => pair().examples[0].text;
+      const line = () => own || demoLine();
+      const result = () => ownResult || DT.fixture(pair(), line());
+      const friendLine = () => pair().examples[1].text;
+      const friendResult = () => DT.fixture(pair(), friendLine());
+      function hashFor(state) {
+        const params = new URLSearchParams();
+        params.set("state", state);
+        if (role === "friend") {
+          params.set("as", "friend");
+          params.set("from", senderName);
+        }
+        if (pairIndex) params.set("pair", String(pairIndex));
+        return "#" + params.toString();
+      }
+      function navigate(state) {
+        location.hash = hashFor(state);
+        render();
+      }
+      function element(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+      function button(text, action, secondary = false) {
+        const node = element("button", secondary ? "action secondary" : "action", text);
+        node.type = "button";
+        node.addEventListener("click", action);
+        return node;
+      }
+      function shell(wide = false) {
+        const root = element("div", wide ? "shell wide" : "shell");
+        const mast = element("header", "mast");
+        mast.append(element("span", "brand", "Double Take"));
+        if (wide) mast.append(element("span", "mast-note", "Two lines. One pair of worlds."));
+        root.append(mast);
+        app.replaceChildren(root);
+        return root;
+      }
+      function worldBand(world) {
+        const band = element("div", "world");
+        band.style.setProperty("--bg", world.bg);
+        band.style.setProperty("--ink", world.ink);
+        band.append(element("span", "world-name", world.label));
+        return band;
+      }
+      function readingCard(world, text, name, sideWord) {
+        const card = element("article", "reading");
+        card.style.setProperty("--bg", world.bg);
+        card.style.setProperty("--ink", world.ink);
+        const heading = element("div", "context", name ? name + " in " + world.label : world.label);
+        card.append(heading, element("p", "line", text), element("div", "side-word", sideWord));
+        return card;
+      }
+      function start() {
+        const root = shell();
+        const intro = element("section", "intro");
+        const title = element("h1", "title");
+        title.append(element("span", "Double"), element("span", "Take"));
+        intro.append(title, element("p", "lede", "Write one sentence of up to 12 words that means something in two different worlds."));
+        intro.append(button("Start a duel", () => navigate("write")));
+        root.append(intro);
+      }
+      function invitation() {
+        const root = shell();
+        const section = element("section", "invitation");
+        section.append(element("h1", "", senderName + " sent you a Double Take."));
+        section.append(element("p", "", "Answer the same two worlds before you see their line."));
+        section.append(button("Answer", () => navigate("friend-write")));
+        root.append(section);
+      }
+      function writeScreen(isError = false) {
+        const root = shell();
+        root.append(element("h1", "stage-title", role === "friend" ? "Your line, before theirs." : "One line. Two worlds."));
+        root.append(worldBand(pair().a));
+        const writing = element("div", "writing");
+        const label = element("label", "", "Your sentence");
+        label.htmlFor = "line-input";
+        const input = element("textarea", "");
+        input.id = "line-input";
+        input.rows = 3;
+        input.value = draft;
+        input.setAttribute("aria-describedby", "line-count line-feedback");
+        const footer = element("div", "writing-foot");
+        const feedback = element("span", "feedback", isError ? "That line didn't go through. Try again." : rejected);
+        feedback.id = "line-feedback";
+        feedback.setAttribute("role", "status");
+        const count = element("span", "counter");
+        count.id = "line-count";
+        footer.append(feedback, count);
+        writing.append(label, input, footer);
+        root.append(writing, worldBand(pair().b));
+        const submit = button("Submit", submitLine);
+        submit.classList.add("write-action");
+        root.append(submit);
+        function update() {
+          draft = input.value;
+          const words = DT.words(draft);
+          count.textContent = words + " of " + DT.MAX_WORDS + " words";
+          count.classList.toggle("over", words > DT.MAX_WORDS);
+          submit.disabled = words === 0 || words > DT.MAX_WORDS;
+          if (words > DT.MAX_WORDS) feedback.textContent = "Use 12 words or fewer.";
+          else if (feedback.textContent === "Use 12 words or fewer.") feedback.textContent = "";
+        }
+        input.addEventListener("input", () => { rejected = ""; if (!isError) feedback.textContent = ""; update(); });
+        update();
+      }
+      async function submitLine() {
+        const text = draft.trim();
+        if (!text || DT.words(text) > DT.MAX_WORDS) return;
+        rejected = "";
+        const id = ++requestNumber;
+        navigate("judging");
+        try {
+          const scored = await DT.judge(pair(), text, failPending ? { fail: true } : undefined);
+          failPending = false;
+          if (id !== requestNumber || route() !== "judging") return;
+          if (scored.gate !== "ok") {
+            rejected = DT.GATE_COPY[scored.gate];
+            navigate(role === "friend" ? "friend-write" : "write");
+            return;
+          }
+          own = text;
+          ownResult = scored;
+          navigate(role === "friend" ? "duel-a" : "own-reveal-a");
+        } catch {
+          failPending = false;
+          if (id === requestNumber && route() === "judging") navigate("error");
+        }
+      }
+      function judging() {
+        const root = shell();
+        const stage = element("section", "waiting");
+        const message = element("p", "", "Reading your line in both worlds");
+        message.append(element("span", "pulse"));
+        stage.append(message);
+        root.append(stage);
+      }
+      function ownReveal(otherWorld) {
+        const root = shell();
+        const world = otherWorld ? pair().b : pair().a;
+        const scored = result();
+        root.append(element("h1", "reading-heading", "Your line"));
+        root.append(readingCard(world, line(), "", DT.SIDE_WORDS[scored[otherWorld ? "b" : "a"]]));
+        if (otherWorld) {
+          const a = element("div", "result");
+          a.append(element("span", "", pair().a.label), element("strong", "", DT.SIDE_WORDS[scored.a]));
+          const b = element("div", "result");
+          b.append(element("span", "", pair().b.label), element("strong", "", DT.SIDE_WORDS[scored.b]));
+          root.append(a, b, element("div", "result-rank", DT.RANKS[scored.rank]));
+        }
+        const actions = element("div", "reading-actions");
+        actions.append(button("Flip line", () => navigate(otherWorld ? "own-reveal-a" : "own-reveal-b"), true));
+        if (otherWorld) actions.append(button("Send to a friend", copyLink));
+        root.append(actions);
+      }
+      async function copyLink() {
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(DEMO_LINK);
+          else {
+            const field = element("textarea");
+            field.value = DEMO_LINK;
+            field.style.position = "fixed";
+            field.style.opacity = "0";
+            document.body.append(field);
+            field.select();
+            const copied = document.execCommand("copy");
+            field.remove();
+            if (!copied) throw new Error("Copy unavailable");
+          }
+          copySucceeded = true;
+        } catch {
+          copySucceeded = false;
+        }
+        navigate("link-copied");
+      }
+      function linkCopied() {
+        const root = shell();
+        root.append(element("h1", "stage-title", copySucceeded ? "Pass it on." : "Link could not be copied."));
+        root.append(element("p", "link-status", copySucceeded ? "Link copied. Your line stays hidden until they answer." : "Copy this link and send it to your friend."));
+        if (!copySucceeded) {
+          const field = element("input", "manual-link");
+          field.readOnly = true;
+          field.value = DEMO_LINK;
+          field.setAttribute("aria-label", "Invitation link");
+          field.addEventListener("focus", () => field.select());
+          root.append(field);
+        }
+        root.append(button("Answer as friend", () => {
+          role = "friend";
+          senderName = "Ada";
+          own = null;
+          ownResult = null;
+          draft = "";
+          navigate("invite");
+        }, true));
+      }
+      function duel(otherWorld, forcedTie) {
+        const root = shell(true);
+        const tieDemoLine = "I will stay with you till the end";
+        const useDemoTie = forcedTie && !ownResult;
+        const yours = useDemoTie ? DT.fixture(pair(), tieDemoLine) : result();
+        const yourLine = useDemoTie ? tieDemoLine : line();
+        const theirs = friendResult();
+        let showB = otherWorld;
+        const heading = element("h1", "duel-heading");
+        root.append(heading);
+        const cards = element("div", "duel-cards");
+        const entries = [[yourLine, "You", yours], [friendLine(), senderName, theirs]].map(([text, name, scored]) => {
+          const card = readingCard(pair().a, text, name, DT.SIDE_WORDS[scored.a]);
+          const detail = element("div", "duel-detail");
+          detail.append(element("span", "", pair().a.label + ": " + DT.SIDE_WORDS[scored.a]));
+          detail.append(element("span", "", pair().b.label + ": " + DT.SIDE_WORDS[scored.b]));
+          detail.append(element("b", "", DT.RANKS[scored.rank]));
+          card.append(detail);
+          cards.append(card);
+          return { card, detail, name, scored };
+        });
+        root.append(cards);
+        const outcome = yours.rank === theirs.rank ? "Dead even." : yours.rank > theirs.rank ? "You win." : senderName + " wins.";
+        const verdict = element("p", "outcome", outcome);
+        const explanation = element("p", "quiet", "The weaker world decides each line.");
+        root.append(verdict, explanation);
+        const actions = element("div", "reading-actions");
+        actions.append(button("Flip both lines", () => {
+          showB = !showB;
+          update();
+          history.pushState(null, "", hashFor(showB ? (yours.rank === theirs.rank ? "duel-tie" : "duel-b") : "duel-a"));
+        }, true));
+        const sendBack = button("Send one back", () => {
+          pairIndex = 1;
+          role = "sender";
+          draft = "";
+          own = null;
+          ownResult = null;
+          rejected = "";
+          navigate("write");
+        });
+        actions.append(sendBack);
+        root.append(actions);
+        function update() {
+          const world = showB ? pair().b : pair().a;
+          heading.textContent = showB ? "The same words, another world." : "Two lines. One world.";
+          for (const { card, detail, name, scored } of entries) {
+            card.style.setProperty("--bg", world.bg);
+            card.style.setProperty("--ink", world.ink);
+            card.querySelector(".context").textContent = name + " in " + world.label;
+            const sideWord = card.querySelector(".side-word");
+            sideWord.textContent = DT.SIDE_WORDS[scored[showB ? "b" : "a"]];
+            sideWord.hidden = showB;
+            detail.hidden = !showB;
+          }
+          verdict.hidden = !showB;
+          explanation.hidden = !showB;
+          sendBack.hidden = !showB;
+        }
+        update();
+      }
+      function render() {
+        const state = route();
+        if (state === "start") start();
+        else if (state === "invite") invitation();
+        else if (state === "write" || state === "friend-write" || state === "error") writeScreen(state === "error");
+        else if (state === "judging") judging();
+        else if (state === "own-reveal-a" || state === "own-reveal-b") ownReveal(state === "own-reveal-b");
+        else if (state === "link-copied") linkCopied();
+        else duel(state !== "duel-a", state === "duel-tie");
+      }
+      window.addEventListener("hashchange", render);
+      render();
+    })();
+  </script>
+</body>
+</html>

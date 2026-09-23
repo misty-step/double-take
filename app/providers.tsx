@@ -60,8 +60,8 @@ export function Providers({ children }: { children: ReactNode }) {
   if (!client)
     return (
       <main className="setup-error">
-        <h1>The press isn’t ready.</h1>
-        <p>Try again in a moment. Nothing you wrote was sent.</p>
+        <h1>Double Take can't start right now.</h1>
+        <p>Try again in a moment.</p>
       </main>
     );
   return (

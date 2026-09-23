@@ -1,43 +1,51 @@
 /**
  * Versioned, descriptive Score rubrics for the Jev adjudication.
  *
- * One request carries four independent questions about the same sentence:
- * plausibility under context A, plausibility under context B, coherence, and
- * specificity. The levels are ordered descriptions, per the TypeSafe Score
- * primitive (https://docs.typesafe.ai/primitives/score). Code — not the model —
- * composes the points in ./rules.ts.
+ * One request carries three independent questions about the same sentence:
+ * would it be appropriate to say it in context A, would it be appropriate to
+ * say it in context B, and is it one coherent sentence rather than two
+ * stitched halves. The levels are ordered descriptions, per the TypeSafe Score
+ * primitive (https://docs.typesafe.ai/primitives/score). Code, not the model,
+ * composes points in ./rules.ts.
+ *
+ * History: rubric@2 asked about plausibility plus a separate specificity
+ * check; rubric@3 asked whether a line "lands" and penalized filler. The game
+ * asks one thing of each world: is this an appropriate thing to say here?
+ * rubric@4 asks exactly that and nothing about novelty or genericness.
  *
  * Bump RUBRIC_VERSION when any level text or instruction changes; retained
  * adjudications record the version that produced them.
  */
 
-export const RUBRIC_VERSION = "double-take-rubric@2";
+export const RUBRIC_VERSION = "double-take-rubric@4";
 
-export const PLAUSIBILITY_LEVELS = [
-  "Impossible or contradictory here — the words fight this context",
-  "Strained — possible, but a reader in this context would stumble",
-  "Natural — a person in this context could say exactly this",
-  "Idiomatic — unmistakably at home in this context",
+export const APPROPRIATE_LEVELS = [
+  "Inappropriate: saying this here would be wrong, jarring, or make no sense",
+  "Awkward: it could be said here, but it would feel off or out of place",
+  "Appropriate: a fitting thing to say here",
+  "Exactly right: the right words for this moment",
 ] as const;
 
 export const COHERENCE_LEVELS = [
-  "Two stitched fragments — each half serves a different context, joined by a comma or conjunction",
-  "Fragmentary or garbled — not one sentence a person would deliberately write",
-  "One coherent sentence — reads as a single deliberate line",
+  "Two stitched fragments: each half serves a different context, joined by a comma or conjunction",
+  "Fragmentary or garbled: not one sentence a person would deliberately write",
+  "One coherent sentence: reads as a single deliberate line",
   "A single sentence with natural voice and rhythm",
 ] as const;
 
-export const SPECIFICITY_LEVELS = [
-  "Empty — would fit any context, says nothing in particular",
-  "Vague — gestures at meaning without landing on anything",
-  "Concrete — clearly about something in the situation",
-  "Vivid — precise, memorable, committed",
-] as const;
-
-export type Context = { label: string; setting: string };
+/**
+ * One world of a pair. `label` and `setting` are what Jev reads; changing them
+ * changes judgments. `name`, `bg`, and `ink` are only what players see.
+ */
+export type Context = {
+  label: string;
+  setting: string;
+  name: string;
+  bg: string;
+  ink: string;
+};
 export type Pair = {
   key: string;
-  title: string;
   contextA: Context;
   contextB: Context;
   note?: string;
@@ -55,46 +63,31 @@ export type JudgeQuestion =
       criteria: Record<string, string | null>;
     };
 
-export function buildQuestions(_pair: Pair): Record<string, JudgeQuestion> {
+function appropriateQuestion(side: "a" | "b"): JudgeQuestion {
+  const other = side === "a" ? "b" : "a";
   return {
-    plausibility_a: {
-      type: "score",
-      instructions: {
-        question:
-          "Read `sentence` as if the only context that existed were `context_a`. How plausible is it as something said or written in that context?",
-        guidance:
-          "Judge this reading alone. Do not reward the sentence for also fitting `context_b`. A reader who knows only context A must find the line natural. Impossible is a strong verdict: use it only when the words fight this context under every reasonable delivery. If a natural delivery — sincere, menacing, or sardonic — could say the line here, the reading is at least Strained.",
-      },
-      criteria: PLAUSIBILITY_LEVELS,
+    type: "score",
+    instructions: {
+      question: `Would it be appropriate to say \`sentence\` in \`context_${side}\`? Consider who is speaking, who is listening, and what is happening.`,
+      guidance: `Judge this situation alone; do not reward the line for also suiting \`context_${other}\`. Judge appropriateness only: whether these words suit this speaker, this listener, and this moment. Do not penalize a line for being common, short, simple, playful, or figurative.`,
     },
-    plausibility_b: {
-      type: "score",
-      instructions: {
-        question:
-          "Read `sentence` as if the only context that existed were `context_b`. How plausible is it as something said or written in that context?",
-        guidance:
-          "Judge this reading alone. Do not reward the sentence for also fitting `context_a`. A reader who knows only context B must find the line natural. Impossible is a strong verdict: use it only when the words fight this context under every reasonable delivery. If a natural delivery — sincere, menacing, or sardonic — could say the line here, the reading is at least Strained.",
-      },
-      criteria: PLAUSIBILITY_LEVELS,
-    },
+    criteria: APPROPRIATE_LEVELS,
+  };
+}
+
+export function buildQuestions(): Record<string, JudgeQuestion> {
+  return {
+    appropriate_a: appropriateQuestion("a"),
+    appropriate_b: appropriateQuestion("b"),
     coherence: {
       type: "score",
       instructions: {
         question:
           "Is `sentence` one coherent sentence, or two independent clauses stitched together so that each half serves a different context?",
         guidance:
-          "Stitched: the two halves would not be said together by anyone, and each half works in only one context — a different context for each half. A comma or conjunction does not make two sentences one. Clauses that both work in the same context are one sentence, not stitching.",
+          "Stitched: the two halves would not be said together by anyone, and each half works in only one context, a different context for each half. A comma or conjunction does not make two sentences one. Clauses that both work in the same context are one sentence, not stitching.",
       },
       criteria: COHERENCE_LEVELS,
-    },
-    specificity: {
-      type: "score",
-      instructions: {
-        question: "How much does `sentence` commit to concrete meaning?",
-        guidance:
-          "A generic line (for example: 'we need to talk') fits every context and therefore means nothing in any. Judge commitment, not grammar.",
-      },
-      criteria: SPECIFICITY_LEVELS,
     },
   };
 }
@@ -112,6 +105,6 @@ export function buildJudgeRequest(model: string, pair: Pair, sentence: string) {
   return {
     model,
     state: buildJudgeState(pair, sentence),
-    questions: buildQuestions(pair),
+    questions: buildQuestions(),
   };
 }

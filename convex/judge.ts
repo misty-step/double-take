@@ -23,9 +23,8 @@ import {
 import {
   buildJudgeRequest,
   COHERENCE_LEVELS,
-  PLAUSIBILITY_LEVELS,
+  APPROPRIATE_LEVELS,
   RUBRIC_VERSION,
-  SPECIFICITY_LEVELS,
   type Pair,
 } from "./rubrics";
 
@@ -36,11 +35,10 @@ export type JudgeConfig = {
 };
 
 export class JudgeUnavailableError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
+  readonly code: string;
+  constructor(code: string, message: string) {
     super(message);
+    this.code = code;
     this.name = "JudgeUnavailableError";
   }
 }
@@ -67,9 +65,9 @@ type FetchLike = typeof fetch;
 
 const MAX_RESPONSE_CHARS = 64 * 1024;
 
-type ScoreAnswer = { level: number; score: number; confidence: number };
+export type ScoreAnswer = { level: number; score: number; confidence: number };
 
-function parseScoreAnswer(
+export function parseScoreAnswer(
   value: unknown,
   levels: readonly string[],
   question: string,
@@ -109,7 +107,11 @@ function parseScoreAnswer(
     );
   }
   if (level === null) level = levelIndexFromScore(score, levels.length);
-  return { level, score, confidence };
+  return {
+    level,
+    score: Math.min(levels.length - 1, Math.max(0, score)),
+    confidence,
+  };
 }
 
 const sleep = (ms: number) =>
@@ -124,14 +126,22 @@ export type AdjudicationDraft = {
   rawJson: string;
 };
 
-/** Retry only overload and transient transport failures; never invent answers. */
-export async function runAdjudication(
+/** One decision answered by Jev: the parsed answer bag, the served model, and the raw text. */
+export type Decision = {
+  answers: Record<string, unknown>;
+  model: string;
+  rawJson: string;
+};
+
+/**
+ * POST one TypeSafe decision request. Retries only overload and transient
+ * transport failures; never invents answers.
+ */
+export async function requestDecision(
   config: JudgeConfig,
-  pair: Pair,
-  sentence: string,
+  body: { model: string; state: unknown; questions: unknown },
   fetchImpl: FetchLike = fetch,
-): Promise<AdjudicationDraft> {
-  const body = buildJudgeRequest(config.model, pair, sentence);
+): Promise<Decision> {
   let lastCode = "JUDGE_UNAVAILABLE";
   let lastMessage = "The judge did not answer. Nothing was scored.";
   for (let attempt = 1; attempt <= MAX_JUDGE_ATTEMPTS; attempt += 1) {
@@ -197,49 +207,61 @@ export async function runAdjudication(
         "JUDGE_BAD_RESPONSE",
         "The judge returned no answers.",
       );
-    const bag = answers as Record<string, unknown>;
-    const plausibilityA = parseScoreAnswer(
-      bag.plausibility_a,
-      PLAUSIBILITY_LEVELS,
-      "plausibility_a",
-    );
-    const plausibilityB = parseScoreAnswer(
-      bag.plausibility_b,
-      PLAUSIBILITY_LEVELS,
-      "plausibility_b",
-    );
-    const coherence = parseScoreAnswer(
-      bag.coherence,
-      COHERENCE_LEVELS,
-      "coherence",
-    );
-    const specificity = parseScoreAnswer(
-      bag.specificity,
-      SPECIFICITY_LEVELS,
-      "specificity",
-    );
-    const levels: JudgedLevels = {
-      plausibilityA: plausibilityA.level,
-      plausibilityB: plausibilityB.level,
-      coherence: coherence.level,
-      specificity: specificity.level,
-    };
     return {
-      rubricVersion: RUBRIC_VERSION,
+      answers: answers as Record<string, unknown>,
       model:
         typeof record.model === "string" && record.model.length > 0
           ? record.model
           : config.model,
-      levels,
-      composed: composeResult(levels),
-      confidenceMin: Math.min(
-        plausibilityA.confidence,
-        plausibilityB.confidence,
-        coherence.confidence,
-        specificity.confidence,
-      ),
       rawJson: text,
     };
   }
   throw new JudgeUnavailableError(lastCode, lastMessage);
+}
+
+/** Judge one line for one pair with the production rubric. */
+export async function runAdjudication(
+  config: JudgeConfig,
+  pair: Pair,
+  sentence: string,
+  fetchImpl: FetchLike = fetch,
+): Promise<AdjudicationDraft> {
+  const decision = await requestDecision(
+    config,
+    buildJudgeRequest(config.model, pair, sentence),
+    fetchImpl,
+  );
+  const bag = decision.answers;
+  const appropriateA = parseScoreAnswer(
+    bag.appropriate_a,
+    APPROPRIATE_LEVELS,
+    "appropriate_a",
+  );
+  const appropriateB = parseScoreAnswer(
+    bag.appropriate_b,
+    APPROPRIATE_LEVELS,
+    "appropriate_b",
+  );
+  const coherence = parseScoreAnswer(
+    bag.coherence,
+    COHERENCE_LEVELS,
+    "coherence",
+  );
+  const levels: JudgedLevels = {
+    a: appropriateA.score,
+    b: appropriateB.score,
+    coherence: coherence.level,
+  };
+  return {
+    rubricVersion: RUBRIC_VERSION,
+    model: decision.model,
+    levels,
+    composed: composeResult(levels),
+    confidenceMin: Math.min(
+      appropriateA.confidence,
+      appropriateB.confidence,
+      coherence.confidence,
+    ),
+    rawJson: decision.rawJson,
+  };
 }

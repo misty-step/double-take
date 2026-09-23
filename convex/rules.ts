@@ -10,9 +10,12 @@ export const MAX_WORDS = 12;
 export const MAX_CHARS = 160;
 export const MIN_CHARS = 2;
 export const ROUNDS_PER_MATCH = 3;
-export const WRITING_WINDOW_MS = 150_000;
-/** One original submission plus two revisions. */
-export const MAX_SUBMISSIONS_PER_ROUND = 3;
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 8;
+/** No clock while people write; once all but one are in, the last player gets this long. */
+export const LAST_PLAYER_MS = 30_000;
+/** After a reveal ends, any seated player may advance if the host has not. */
+export const ADVANCE_GRACE_MS = 60_000;
 export const JUDGE_RATE_LIMIT = { windowMs: 10 * 60_000, max: 24 } as const;
 export const MAX_JUDGE_ATTEMPTS = 3;
 export const JUDGE_TIMEOUT_MS = 12_000;
@@ -75,62 +78,56 @@ export function checkSentence(input: string): SentenceCheck {
   };
 }
 
-/** Points for the weaker reading. Deterministic table, no interpolation. */
-export const PLAUSIBILITY_POINTS = [0, 1, 3, 6] as const;
-
+/**
+ * What Jev said about one line. `a` and `b` are the probability-weighted
+ * appropriateness scores for each world (0 to 3, fractional); `coherence` is the most likely
+ * coherence level (0 to 3).
+ */
 export type JudgedLevels = {
-  plausibilityA: number;
-  plausibilityB: number;
+  a: number;
+  b: number;
   coherence: number;
-  specificity: number;
 };
 
-export type Gate = "ok" | "stitched" | "generic" | "unreadable";
+/** Why a line scored nothing. Player copy for each lives in the client. */
+export type ZeroReason = "stitched" | "rejected";
 
 export type ComposedResult = {
+  /** Each world's rating as players see it, 0 to 3. */
+  first: number;
+  second: number;
   weaker: number;
   points: number;
-  gate: Gate;
-  gateMessage: string;
+  zero: ZeroReason | null;
 };
 
-export const GATE_MESSAGES: Record<Gate, string> = {
-  ok: "Both readings hold. The weaker one sets the points.",
-  stitched:
-    "Stitched halves do not count. One sentence must serve both contexts, not two clauses dividing the work.",
-  generic: "The sentence fits anything, so it means nothing in particular.",
-  unreadable: "One reading collapses in its context.",
-};
-
+/**
+ * Each world's rating is Jev's weighted appropriateness score rounded to the nearest
+ * level, so an even split between two levels lands between them instead of
+ * on whichever the tie happens to pick. A line's points are both ratings
+ * added (0 to 6). It scores nothing when it is two stitched halves, or when
+ * either world finds it inappropriate: without that floor a line that suits
+ * one world and is wrong in the other (3 + 0) would beat one that fits both.
+ */
 export function composeResult(levels: JudgedLevels): ComposedResult {
-  const weaker = Math.min(levels.plausibilityA, levels.plausibilityB);
-  if (levels.coherence < 2)
-    return {
-      weaker,
-      points: 0,
-      gate: "stitched",
-      gateMessage: GATE_MESSAGES.stitched,
-    };
-  if (levels.specificity < 1)
-    return {
-      weaker,
-      points: 0,
-      gate: "generic",
-      gateMessage: GATE_MESSAGES.generic,
-    };
-  if (weaker < 1)
-    return {
-      weaker,
-      points: 0,
-      gate: "unreadable",
-      gateMessage: GATE_MESSAGES.unreadable,
-    };
-  return {
-    weaker,
-    points: PLAUSIBILITY_POINTS[weaker] ?? 0,
-    gate: "ok",
-    gateMessage: GATE_MESSAGES.ok,
-  };
+  const first = rating(levels.a);
+  const second = rating(levels.b);
+  const weaker = Math.min(first, second);
+  const zero: ZeroReason | null =
+    levels.coherence < 2 ? "stitched" : weaker < 1 ? "rejected" : null;
+  return { first, second, weaker, points: zero ? 0 : first + second, zero };
+}
+
+function rating(score: number): number {
+  return Math.max(0, Math.min(3, Math.round(score)));
+}
+
+/** Round order: more points first; equal points go to the more balanced line. */
+export function compareLines(
+  x: { points: number; weaker: number },
+  y: { points: number; weaker: number },
+): number {
+  return y.points - x.points || y.weaker - x.weaker;
 }
 
 export function levelIndexFromScore(score: number, levelCount: number): number {

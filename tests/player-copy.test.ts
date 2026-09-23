@@ -1,77 +1,70 @@
 import { describe, expect, it } from "vitest";
 import {
-  PRACTICE_SCORING_UNAVAILABLE,
+  CONNECTION_UNAVAILABLE,
   SEAT_RECOVERY_UNAVAILABLE,
   SEAT_RESET_UNAVAILABLE,
-  TABLE_ACTION_UNAVAILABLE,
-  TABLE_SCORING_UNAVAILABLE,
-  practiceFailureCopy,
+  playerFailureCopy,
 } from "../lib/player-copy";
 
-describe("player-facing recovery copy", () => {
-  it("uses fixed seat recovery copy instead of reflecting setup details", () => {
+describe("player-facing failure copy", () => {
+  it("translates every room and game refusal into plain language", () => {
+    const cases = {
+      join: {
+        INVALID_ROOM_CODE: "No game with that code. Check it and try again.",
+        ROOM_NOT_OPEN: "No game with that code. Check it and try again.",
+        ROOM_FULL: "That game is full.",
+        INVALID_DISPLAY_NAME: "Add your name so everyone knows who wrote what.",
+        ROOM_JOIN_RATE_LIMIT: "Too many tries. Wait a minute, then try again.",
+        ROOM_DATA_INVALID: "That game isn't available. Ask for a new invite.",
+      },
+      start: {
+        HOST_REQUIRED: "Only the host can start the game.",
+        NOT_HOST: "Only the host can start the game.",
+        ROOM_NOT_OPEN: "This game is no longer open.",
+        NOT_ENOUGH_PLAYERS: "Wait for another player to join.",
+        TOO_MANY_PLAYERS: "This game has room for eight players.",
+        ROOM_FULL: "This game has room for eight players.",
+        MATCH_ALREADY_ACTIVE: "The game has already started.",
+        GAME_ALREADY_ACTIVE: "The game has already started.",
+      },
+      submit: {
+        WRONG_PHASE: "This round is already over.",
+        ALREADY_LOCKED: "Your line is already locked in.",
+        NOT_SEATED:
+          "You're watching this round. You can play in the next game.",
+        SENTENCE_EMPTY: "Write one line before locking it in.",
+        SENTENCE_TOO_LONG: "Keep your line under 160 characters.",
+        TOO_MANY_WORDS: "One line, twelve words at most.",
+        NO_LETTERS: "Use at least one letter or number.",
+        SLOW_DOWN:
+          "That's a lot of lines at once. Wait a minute, then try again.",
+      },
+      advance: {
+        WRONG_PHASE: "This round has already moved on.",
+        HOST_REQUIRED:
+          "The host starts the next round. You can step in if they're away.",
+        REVEAL_RUNNING: "Wait until every line has been shown.",
+      },
+    } as const;
+    for (const action of Object.keys(cases) as (keyof typeof cases)[]) {
+      for (const [code, sentence] of Object.entries(cases[action])) {
+        expect(playerFailureCopy(action, code)).toBe(sentence);
+      }
+    }
+  });
+
+  it("uses one safe connection fallback for unknown and missing codes", () => {
+    for (const action of ["join", "start", "submit", "advance"] as const) {
+      expect(playerFailureCopy(action, "UNEXPECTED_PROVIDER_BODY")).toBe(
+        CONNECTION_UNAVAILABLE,
+      );
+      expect(playerFailureCopy(action)).toBe(CONNECTION_UNAVAILABLE);
+    }
     expect(SEAT_RECOVERY_UNAVAILABLE).toBe(
-      "We couldn’t reach the game service. Try again in a moment.",
+      "We couldn't restore your seat. Check your connection and try again.",
     );
     expect(SEAT_RESET_UNAVAILABLE).toBe(
-      "We couldn’t start a fresh seat. Check your connection and try again.",
-    );
-    expect(
-      `${SEAT_RECOVERY_UNAVAILABLE} ${SEAT_RESET_UNAVAILABLE}`,
-    ).not.toMatch(/fixture|server|configured|guest issuer/i);
-  });
-
-  it("maps every judge outage to one concise, non-technical retry message", () => {
-    for (const code of [
-      undefined,
-      "JUDGE_UNCONFIGURED",
-      "JUDGE_HTTP_529",
-      "JUDGE_TIMEOUT",
-      "UNEXPECTED_PROVIDER_BODY",
-    ]) {
-      expect(practiceFailureCopy(code)).toBe(PRACTICE_SCORING_UNAVAILABLE);
-    }
-    expect(PRACTICE_SCORING_UNAVAILABLE).toBe(
-      "Scoring is temporarily unavailable. Your line wasn’t scored. Try again in a moment.",
-    );
-    expect(PRACTICE_SCORING_UNAVAILABLE).not.toMatch(
-      /judge|provider|server|configured|fixture/i,
-    );
-  });
-
-  it("keeps actionable validation and pacing failures specific", () => {
-    expect(practiceFailureCopy("SENTENCE_EMPTY")).toBe(
-      "Write one sentence of at least two characters.",
-    );
-    expect(practiceFailureCopy("SENTENCE_TOO_LONG")).toBe(
-      "Keep the sentence under 160 characters.",
-    );
-    expect(practiceFailureCopy("TOO_MANY_WORDS")).toBe(
-      "One sentence, twelve words at most.",
-    );
-    expect(practiceFailureCopy("NO_LETTERS")).toBe(
-      "Use at least one letter or number.",
-    );
-    expect(practiceFailureCopy("SLOW_DOWN")).toBe(
-      "That’s a lot of tries at once. Wait a minute, then try again.",
-    );
-    expect(practiceFailureCopy("SESSION_INVALID")).toBe(
-      "Your practice seat expired. Go back and start again.",
-    );
-  });
-
-  it("keeps generic table failures free of backend terminology", () => {
-    expect(TABLE_ACTION_UNAVAILABLE).toBe(
-      "That didn’t go through. Check your connection and try again.",
-    );
-    expect(TABLE_ACTION_UNAVAILABLE).not.toMatch(
-      /convex|server|mutation|action|fixture/i,
-    );
-    expect(TABLE_SCORING_UNAVAILABLE).toBe(
-      "Scoring is temporarily unavailable. Submitted lines are safe. Try again in a moment.",
-    );
-    expect(TABLE_SCORING_UNAVAILABLE).not.toMatch(
-      /judge|provider|server|configured|fixture/i,
+      "We couldn't start a fresh seat. Check your connection and try again.",
     );
   });
 });

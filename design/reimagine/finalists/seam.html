@@ -1,0 +1,449 @@
+<!doctype html>
+<!-- Hash states: #state=seam-empty, #state=seam-hint, #state=seam-typing, #state=judging-a, #state=reveal-a, #state=reveal-b, #state=result-double-take, #state=result-close, #state=stitched, #state=generic, #state=error, #state=new-pair. Add &fail=1 after a state, or use #fail=1 alone, to make the next submission fail. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Double Take</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme: light; font-family: "Public Sans", Arial, sans-serif; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: #fff; }
+    button { font: inherit; cursor: pointer; }
+    button:focus-visible, [contenteditable]:focus-visible { outline: 3px solid #126aff; outline-offset: 4px; }
+    .stage {
+      position: relative; isolation: isolate; overflow: hidden; width: 100%;
+      height: 100vh; height: 100dvh; min-height: 620px;
+      --a-bg: #f8dce1; --a-ink: #000; --b-bg: #16203a; --b-ink: #fff;
+      --line-size: clamp(30px, 5vw, 44px);
+    }
+    .world { position: absolute; left: 0; right: 0; height: 50%; overflow: hidden; }
+    .world-a { top: 0; background: var(--a-bg); color: var(--a-ink); }
+    .world-b { bottom: 0; background: var(--b-bg); color: var(--b-ink); }
+    .world-label, .reading-label {
+      position: absolute; left: 50%; width: min(calc(100% - 48px), 660px);
+      margin: 0; text-align: center; font-family: "Newsreader", Georgia, serif;
+      font-optical-sizing: auto; font-size: clamp(39px, 7vw, 68px);
+      font-weight: 400; line-height: 1.03; text-wrap: balance;
+    }
+    .world-label { top: 50%; transform: translate(-50%, -50%); }
+    .band {
+      position: absolute; z-index: 2; top: 50%; left: 0; width: 100%;
+      height: 272px; transform: translateY(-50%); background: #fff; color: #101621;
+      box-shadow: 0 -1px #fff, 0 1px #fff;
+    }
+    .line {
+      position: absolute; left: 50%; top: 50%; width: min(calc(100% - 44px), 680px);
+      min-height: 48px; margin: 0; padding: 0; transform: translate(-50%, -50%);
+      font-family: "Newsreader", Georgia, serif; font-optical-sizing: auto;
+      font-size: var(--line-size); font-weight: 400; line-height: 1.12;
+      letter-spacing: -.025em; text-align: center; text-wrap: balance;
+      overflow-wrap: anywhere;
+    }
+    .draft-line { border: 0; box-shadow: inset 0 -1px #92979e; outline: none; white-space: pre-wrap; cursor: text; }
+    .draft-line:focus-visible { box-shadow: inset 0 -1px #126aff; }
+    .hint {
+      position: absolute; top: calc(50% - 120px); left: 50%;
+      transform: translateX(-50%); width: min(calc(100% - 36px), 560px);
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      text-align: center; font-size: 12px; line-height: 1.35;
+    }
+    .hint button { min-width: 44px; min-height: 44px; padding: 5px; border: 0; background: none; color: #172c54; text-decoration: underline; text-underline-offset: 3px; }
+    .meter {
+      position: absolute; top: calc(50% + 78px); left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 5px; height: 12px;
+    }
+    .meter i { display: block; width: 12px; height: 2px; background: #c6cbd1; }
+    .meter i.used { background: #172c54; }
+    .meter i.over { background: #ad1834; }
+    .draft-note {
+      position: absolute; top: calc(50% + 91px); width: 100%; text-align: center;
+      font-size: 12px; color: #a21a32;
+    }
+    .submit {
+      position: absolute; left: 50%; bottom: 11px; transform: translateX(-50%);
+      min-width: 128px; min-height: 44px; padding: 9px 24px; border: 1px solid #172c54;
+      border-radius: 0; background: #172c54; color: #fff; font-size: 13px; font-weight: 600;
+    }
+    .submit:disabled { background: #b5bac2; border-color: #b5bac2; color: #101621; cursor: not-allowed; }
+    .reading {
+      position: absolute; z-index: 3; inset: 0; overflow: hidden;
+      visibility: hidden; pointer-events: none;
+    }
+    .reading-a { background: var(--a-bg); color: var(--a-ink); clip-path: inset(0 0 100% 0); }
+    .reading-b { background: var(--b-bg); color: var(--b-ink); clip-path: inset(100% 0 0 0); }
+    .stage[data-view="reading"] .reading { visibility: visible; }
+    .stage[data-view="reading"] .reading-a { clip-path: inset(0 0 0 0); transition: clip-path 700ms cubic-bezier(.66,0,.17,1); }
+    .stage[data-view="reading"] .reading-b { transition: clip-path 700ms cubic-bezier(.66,0,.17,1); }
+    .stage[data-view="reading"].show-b .reading-b { clip-path: inset(0 0 0 0); }
+    .reading-label { top: 25%; transform: translate(-50%, -50%); }
+    .stage.waiting .reading-a .reading-label { animation: breathe 2.3s ease-in-out infinite; }
+    @keyframes breathe { 50% { opacity: .56; } }
+    .reading-line { border: 0; background: none; color: transparent; visibility: hidden; cursor: pointer; pointer-events: auto; }
+    .reading-b .reading-line:focus-visible { outline-color: #ffeb70; }
+    .stage.finished .reading-line { visibility: visible; }
+    .reading-line:disabled { cursor: default; }
+    .still-line { visibility: visible; pointer-events: none; }
+    .side-word {
+      position: absolute; top: calc(50% + 83px); left: 50%; transform: translateX(-50%);
+      margin: 0; width: min(calc(100% - 44px), 680px); text-align: center;
+      font-size: 13px; font-weight: 600;
+      opacity: 0; transition: opacity 320ms ease;
+    }
+    .side-word.shown { opacity: 1; }
+    .outcome {
+      position: absolute; z-index: 4; top: calc(50% + 137px); left: 50%;
+      transform: translateX(-50%); width: min(calc(100% - 44px), 680px);
+      text-align: center; opacity: 0; pointer-events: none; transition: opacity 350ms ease;
+    }
+    .stage[data-view="reading"].show-b .outcome { color: var(--b-ink); }
+    .stage[data-view="reading"]:not(.show-b) .outcome { color: var(--a-ink); }
+    .outcome.shown { opacity: 1; }
+    .outcome strong { display: block; font: 500 clamp(30px, 5vw, 48px)/1.05 "Newsreader", Georgia, serif; font-optical-sizing: auto; }
+    .outcome p { margin: 9px 0 0; font-size: 13px; line-height: 1.4; }
+    .after-actions {
+      position: absolute; z-index: 6; left: 50%; bottom: max(22px, env(safe-area-inset-bottom));
+      transform: translateX(-50%); display: none; align-items: center; gap: 12px;
+    }
+    .stage.finished .after-actions { display: flex; }
+    .after-actions button, .corner-controls button {
+      min-height: 44px; padding: 8px 12px; border: 1px solid currentColor;
+      border-radius: 0; background: transparent; color: inherit; font-size: 13px; font-weight: 600;
+    }
+    .corner-controls {
+      position: absolute; z-index: 7; left: 50%; top: max(12px, env(safe-area-inset-top));
+      transform: translateX(-50%); width: min(calc(100% - 24px), 720px);
+      display: flex; justify-content: space-between; gap: 8px; color: var(--a-ink);
+    }
+    .stage[data-view="reading"].show-b .after-actions { color: var(--b-ink); }
+    .stage[data-view="reading"]:not(.show-b) .after-actions { color: var(--a-ink); }
+    .stage[data-view="reading"].show-b-controls .corner-controls { color: var(--b-ink); }
+    .corner-controls button { border: 0; padding-inline: 8px; }
+    .stage[data-view="seam"] .outcome { display: none; }
+    .stage[data-view="reading"].band-gone .band { visibility: hidden; }
+    .stage.pair-change .world-a { animation: enter-a 650ms cubic-bezier(.2,.8,.2,1) both; }
+    .stage.pair-change .world-b { animation: enter-b 650ms cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes enter-a { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+    @keyframes enter-b { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    dialog { max-width: min(390px, calc(100% - 36px)); padding: 28px; border: 1px solid #172c54; border-radius: 0; background: #fff; color: #101621; box-shadow: 0 18px 60px #10162133; }
+    dialog::backdrop { background: #0c163a9c; }
+    dialog h2 { margin: 0 0 15px; font: 400 34px/1.05 "Newsreader", Georgia, serif; }
+    dialog p { margin: 0 0 20px; font-size: 15px; line-height: 1.5; }
+    dialog button { min-height: 44px; padding: 8px 15px; border: 1px solid #172c54; background: #172c54; color: #fff; font-size: 13px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-height: 700px) {
+      .stage { min-height: 600px; }
+      .band { height: 242px; }
+      .hint { top: calc(50% - 108px); }
+      .meter { top: calc(50% + 68px); }
+      .draft-note { top: calc(50% + 80px); }
+      .side-word { top: calc(50% + 74px); }
+      .outcome { top: calc(50% + 116px); }
+      .submit { bottom: 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+      .stage[data-view="reading"] .reading-a, .stage[data-view="reading"] .reading-b { transition: opacity 150ms ease, clip-path 0ms !important; }
+      .stage[data-view="reading"] .reading-a { clip-path: inset(0 0 0 0); }
+      .stage[data-view="reading"] .reading-b { clip-path: inset(0 0 0 0); opacity: 0; }
+      .stage[data-view="reading"].show-b .reading-b { opacity: 1; }
+      .stage[data-view="reading"] .band { visibility: hidden; }
+      .side-word, .outcome { transition-duration: 150ms; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" id="stage" data-view="seam" aria-label="Double Take">
+    <div class="world world-a"><h1 class="world-label" id="world-a-label"></h1></div>
+    <div class="world world-b"><h2 class="world-label" id="world-b-label"></h2></div>
+    <div class="band" id="band">
+      <div class="hint" id="hint"><span>Write one line that belongs in both worlds.</span><button type="button" id="dismiss-hint">Dismiss</button></div>
+      <div class="line draft-line" id="draft" contenteditable="true" role="textbox" aria-label="Write your line" aria-multiline="false" spellcheck="true"></div>
+      <div class="meter" id="meter" role="meter" aria-label="Words used" aria-valuemin="0" aria-valuemax="12" aria-valuenow="0"></div>
+      <div class="draft-note" id="draft-note" role="status"></div>
+      <button class="submit" id="submit" type="button">Submit</button>
+    </div>
+    <section class="reading reading-a" id="reading-a" aria-label="First reading">
+      <h2 class="reading-label" id="reading-a-label"></h2>
+      <button type="button" class="line reading-line" id="line-a" aria-label="Flip worlds" disabled></button>
+      <p class="line still-line" id="still-a" aria-hidden="true"></p>
+      <p class="side-word" id="word-a"></p>
+    </section>
+    <section class="reading reading-b" id="reading-b" aria-label="Second reading">
+      <h2 class="reading-label" id="reading-b-label"></h2>
+      <button type="button" class="line reading-line" id="line-b" aria-label="Flip worlds" disabled></button>
+      <p class="line still-line" id="still-b" aria-hidden="true"></p>
+      <p class="side-word" id="word-b"></p>
+    </section>
+    <div class="outcome" id="outcome" aria-live="polite"><strong id="rank"></strong><p id="guidance"></p></div>
+    <div class="corner-controls"><button type="button" id="new-pair">New pair</button><button type="button" id="how">How it works</button></div>
+    <div class="after-actions"><button type="button" id="edit-line">Edit line</button></div>
+    <div class="sr-only" id="announcement" aria-live="polite"></div>
+  </main>
+  <dialog id="instructions" aria-labelledby="instructions-title">
+    <h2 id="instructions-title">How it works</h2>
+    <p>Write one line that belongs in both worlds.</p>
+    <p>Read it in each world. The weaker reading decides how it lands.</p>
+    <button type="button" id="close-instructions">Close</button>
+  </dialog>
+  <script src="../shared/game.js"></script>
+  <script>
+    (() => {
+      "use strict";
+      const DT = window.DT;
+      const $ = (id) => document.getElementById(id);
+      const stage = $("stage");
+      const draft = $("draft");
+      const meter = $("meter");
+      const hint = $("hint");
+      const note = $("draft-note");
+      const outcome = $("outcome");
+      const lines = { a: $("line-a"), b: $("line-b") };
+      const still = { a: $("still-a"), b: $("still-b") };
+      const sideWords = { a: $("word-a"), b: $("word-b") };
+      const readings = { a: $("reading-a"), b: $("reading-b") };
+      const meterTicks = Array.from({ length: DT.MAX_WORDS }, () => {
+        const tick = document.createElement("i");
+        tick.setAttribute("aria-hidden", "true");
+        meter.append(tick);
+        return tick;
+      });
+      let pairIndex = 0;
+      let line = "";
+      let token = 0;
+      let finished = false;
+      let currentSide = "a";
+      const pair = () => DT.PAIRS[pairIndex];
+      const timers = [];
+      const later = (fn, delay, generation) => {
+        const id = setTimeout(() => { if (token === generation) fn(); }, delay);
+        timers.push(id);
+      };
+      function cancelSequence() {
+        token++;
+        while (timers.length) clearTimeout(timers.pop());
+      }
+      function storedHint() {
+        try { return localStorage.getItem("dt-seam-hint-dismissed") === "1"; } catch { return false; }
+      }
+      function dismissHint() {
+        hint.hidden = true;
+        try { localStorage.setItem("dt-seam-hint-dismissed", "1"); } catch { /* Storage may be unavailable. */ }
+      }
+      function showPair() {
+        const { a, b } = pair();
+        stage.style.setProperty("--a-bg", a.bg);
+        stage.style.setProperty("--a-ink", a.ink);
+        stage.style.setProperty("--b-bg", b.bg);
+        stage.style.setProperty("--b-ink", b.ink);
+        $("world-a-label").textContent = $("reading-a-label").textContent = a.label;
+        $("world-b-label").textContent = $("reading-b-label").textContent = b.label;
+      }
+      function syncLine() {
+        lines.a.textContent = lines.b.textContent = still.a.textContent = still.b.textContent = line;
+      }
+      function syncMeter() {
+        const count = DT.words(draft.textContent);
+        meter.setAttribute("aria-valuenow", String(Math.min(count, DT.MAX_WORDS)));
+        meter.setAttribute("aria-valuetext", `${count} of ${DT.MAX_WORDS} words`);
+        meterTicks.forEach((tick, i) => { tick.className = i < count ? (count > DT.MAX_WORDS ? "over" : "used") : ""; });
+        note.textContent = count > DT.MAX_WORDS ? "Keep it to 12 words." : "";
+        $("submit").disabled = count > DT.MAX_WORDS;
+      }
+      function seam(message = "", showHint = false) {
+        cancelSequence();
+        finished = false;
+        stage.dataset.view = "seam";
+        stage.classList.remove("show-b", "show-b-controls", "waiting", "finished", "band-gone");
+        sideWords.a.classList.remove("shown");
+        sideWords.b.classList.remove("shown");
+        outcome.classList.remove("shown");
+        lines.a.disabled = lines.b.disabled = true;
+        readings.a.setAttribute("aria-hidden", "true");
+        readings.b.setAttribute("aria-hidden", "true");
+        hint.hidden = !showHint;
+        draft.textContent = line;
+        note.textContent = message;
+        syncMeter();
+        if (message) note.textContent = message;
+        $("announcement").textContent = message;
+      }
+      function reading(text, waiting = false) {
+        cancelSequence();
+        line = text;
+        syncLine();
+        currentSide = "a";
+        finished = false;
+        stage.classList.remove("show-b", "show-b-controls", "finished", "band-gone");
+        stage.classList.toggle("waiting", waiting);
+        stage.dataset.view = "reading";
+        outcome.classList.remove("shown");
+        sideWords.a.classList.remove("shown");
+        sideWords.b.classList.remove("shown");
+        lines.a.disabled = lines.b.disabled = true;
+        still.a.hidden = still.b.hidden = false;
+        readings.a.removeAttribute("aria-hidden");
+        readings.b.setAttribute("aria-hidden", "true");
+        $("rank").textContent = $("guidance").textContent = "";
+        $("announcement").textContent = waiting ? `${pair().a.label}. Reading your line.` : "";
+        return token;
+      }
+      function switchTo(side) {
+        currentSide = side;
+        stage.classList.toggle("show-b", side === "b");
+        stage.classList.remove("show-b-controls");
+        if (side === "b") {
+          later(() => { if (currentSide === "b") stage.classList.add("show-b-controls"); },
+            matchMedia("(prefers-reduced-motion: reduce)").matches ? 150 : 700, token);
+        }
+        readings.a.setAttribute("aria-hidden", side === "a" ? "false" : "true");
+        readings.b.setAttribute("aria-hidden", side === "b" ? "false" : "true");
+        lines.a.tabIndex = side === "a" ? 0 : -1;
+        lines.b.tabIndex = side === "b" ? 0 : -1;
+        $("announcement").textContent = `${side === "a" ? pair().a.label : pair().b.label}. ${line}`;
+      }
+      function showResult(result) {
+        stage.classList.remove("waiting");
+        finished = true;
+        stage.classList.add("finished");
+        lines.a.disabled = lines.b.disabled = false;
+        if (result.gate !== "ok") {
+          $("rank").textContent = DT.GATE_COPY[result.gate];
+          $("guidance").textContent = "";
+        } else {
+          $("rank").textContent = DT.RANKS[result.rank];
+          $("guidance").textContent = result.a < result.b
+            ? `${pair().a.label} is the weaker reading.`
+            : result.b < result.a
+              ? `${pair().b.label} is the weaker reading.`
+              : "Both worlds hold the line.";
+        }
+        outcome.classList.add("shown");
+        $("announcement").textContent = `${$("rank").textContent} ${$("guidance").textContent}`;
+      }
+      function submit() {
+        if (stage.dataset.view !== "seam") return;
+        const text = draft.textContent.replace(/\s+/g, " ").trim();
+        const count = DT.words(text);
+        if (!count) { note.textContent = "Write a line before submitting."; draft.focus(); return; }
+        if (count > DT.MAX_WORDS) { note.textContent = "Keep it to 12 words."; draft.focus(); return; }
+        dismissHint();
+        draft.blur();
+        const generation = reading(text, true);
+        later(() => stage.classList.add("band-gone"), 700, generation);
+        const fail = new URLSearchParams(location.hash.slice(1)).get("fail") === "1";
+        DT.judge(pair(), text, { fail }).then((result) => {
+          if (generation !== token) return;
+          stage.classList.remove("waiting");
+          if (result.gate === "ok") {
+            sideWords.a.textContent = DT.SIDE_WORDS[result.a];
+            sideWords.b.textContent = DT.SIDE_WORDS[result.b];
+            sideWords.a.classList.add("shown");
+          }
+          later(() => {
+            switchTo("b");
+            later(() => {
+              if (result.gate === "ok") sideWords.b.classList.add("shown");
+              later(() => showResult(result), result.gate === "ok" ? 700 : 350, generation);
+            }, 750, generation);
+          }, 1400, generation);
+        }).catch(() => {
+          if (generation === token) { seam("That line didn't go through. Try again."); draft.focus(); }
+        });
+      }
+      function newPair() {
+        pairIndex = (pairIndex + 1) % DT.PAIRS.length;
+        line = "";
+        showPair();
+        seam();
+        stage.classList.remove("pair-change");
+        void stage.offsetWidth;
+        stage.classList.add("pair-change");
+        draft.focus();
+      }
+      function fromHash() {
+        const params = new URLSearchParams(location.hash.slice(1));
+        const state = params.get("state");
+        pairIndex = state === "new-pair" ? 1 : 0;
+        showPair();
+        stage.classList.remove("pair-change");
+        const double = "You are mine, now and forever";
+        const close = "You will never escape me now";
+        if (!state || state === "seam-hint") { line = ""; seam("", state === "seam-hint" || !storedHint()); return; }
+        if (state === "seam-empty" || state === "new-pair") { line = ""; seam(); return; }
+        if (state === "seam-typing") { line = double; seam(); return; }
+        if (state === "error") { line = double; seam("That line didn't go through. Try again."); return; }
+        const samples = {
+          "judging-a": double,
+          "reveal-a": double,
+          "reveal-b": double,
+          "result-double-take": double,
+          "result-close": close,
+          stitched: "I promise to stay, and you will regret this",
+          generic: "We need to talk"
+        };
+        if (!(state in samples)) { line = ""; seam("", !storedHint()); return; }
+        reading(samples[state], state === "judging-a");
+        stage.classList.add("band-gone");
+        if (state === "judging-a") return;
+        const result = DT.fixture(pair(), line);
+        if (result.gate === "ok") {
+          sideWords.a.textContent = DT.SIDE_WORDS[result.a];
+          sideWords.b.textContent = DT.SIDE_WORDS[result.b];
+          sideWords.a.classList.add("shown");
+        }
+        if (state === "reveal-a") return;
+        switchTo("b");
+        stage.classList.add("show-b-controls");
+        if (state === "reveal-b") {
+          if (result.gate === "ok") sideWords.b.classList.add("shown");
+          return;
+        }
+        if (result.gate === "ok") sideWords.b.classList.add("shown");
+        showResult(result);
+      }
+      draft.addEventListener("input", () => { note.textContent = ""; syncMeter(); });
+      draft.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") { event.preventDefault(); submit(); }
+      });
+      draft.addEventListener("paste", (event) => {
+        event.preventDefault();
+        const text = event.clipboardData.getData("text/plain").replace(/\s+/g, " ");
+        const selection = getSelection();
+        if (!selection.rangeCount || !draft.contains(selection.anchorNode)) return;
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const node = document.createTextNode(text);
+        range.insertNode(node);
+        range.setStartAfter(node);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        draft.dispatchEvent(new Event("input"));
+      });
+      $("submit").addEventListener("click", submit);
+      $("dismiss-hint").addEventListener("click", dismissHint);
+      $("new-pair").addEventListener("click", newPair);
+      $("edit-line").addEventListener("click", () => { seam(); draft.focus(); });
+      for (const side of ["a", "b"]) {
+        lines[side].addEventListener("click", () => {
+          if (!finished) return;
+          const keyboard = lines[side].matches(":focus-visible");
+          switchTo(side === "a" ? "b" : "a");
+          if (keyboard) lines[currentSide].focus();
+        });
+      }
+      const dialog = $("instructions");
+      $("how").addEventListener("click", () => dialog.showModal());
+      $("close-instructions").addEventListener("click", () => dialog.close());
+      window.addEventListener("hashchange", fromHash);
+      fromHash();
+    })();
+  </script>
+</body>
+</html>

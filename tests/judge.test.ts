@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { CALIBRATION, PAIRS, pairByKey } from "../convex/content";
+import { CALIBRATION } from "../convex/content";
+import { PAIRS, pairByKey } from "../convex/deck";
 import {
   JudgeUnavailableError,
   readJudgeConfig,
@@ -9,29 +10,30 @@ import { checkSentence, normalizeSentence } from "../convex/rules";
 
 const pair = pairByKey("vow-villain")!;
 
-function scoreAnswer(level: number, confidence = 0.9) {
+/** A TypeSafe score answer; `score` defaults to the level (all probability on it). */
+function scoreAnswer(
+  level: number,
+  {
+    score = level,
+    confidence = 0.9,
+  }: { score?: number; confidence?: number } = {},
+) {
   return {
     type: "score",
-    score: level,
+    score,
     legend: { "0": "l0", "1": "l1", "2": "l2", "3": "l3" },
     probabilities: { "0": 0, "1": 0, "2": 0, "3": 0, [String(level)]: 1 },
     confidence,
   };
 }
 
-function response(levels: {
-  a: number;
-  b: number;
-  coherence: number;
-  specificity: number;
-}) {
+function response(levels: { a: number; b: number; coherence: number }) {
   return {
     model: "jev-1.13-test",
     answers: {
-      plausibility_a: scoreAnswer(levels.a),
-      plausibility_b: scoreAnswer(levels.b),
+      appropriate_a: scoreAnswer(levels.a),
+      appropriate_b: scoreAnswer(levels.b),
       coherence: scoreAnswer(levels.coherence),
-      specificity: scoreAnswer(levels.specificity),
     },
   };
 }
@@ -64,42 +66,65 @@ describe("judge configuration", () => {
 });
 
 describe("runAdjudication", () => {
-  it("parses the documented score answers and composes the weaker reading", async () => {
+  it("sends the three rubric@4 questions and composes both worlds' fit", async () => {
     const fetchMock = vi.fn(
       async (_url: RequestInfo | URL, _init?: RequestInit) =>
-        new Response(
-          JSON.stringify(
-            response({ a: 3, b: 3, coherence: 3, specificity: 2 }),
-          ),
-          {
-            status: 200,
-          },
-        ),
+        new Response(JSON.stringify(response({ a: 3, b: 3, coherence: 3 })), {
+          status: 200,
+        }),
     );
     const draft = await runAdjudication(
       config,
       pair,
-      "I will love you until death takes me",
+      "You are mine, now and forever",
       fetchMock,
     );
-    expect(draft.levels).toEqual({
-      plausibilityA: 3,
-      plausibilityB: 3,
-      coherence: 3,
-      specificity: 2,
+    expect(draft.levels).toEqual({ a: 3, b: 3, coherence: 3 });
+    expect(draft.composed).toEqual({
+      first: 3,
+      second: 3,
+      weaker: 3,
+      points: 6,
+      zero: null,
     });
-    expect(draft.composed).toMatchObject({ weaker: 3, points: 6, gate: "ok" });
-    expect(draft.rubricVersion).toBe("double-take-rubric@2");
+    expect(draft.rubricVersion).toBe("double-take-rubric@4");
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(body.model).toBe("typesafe/jev-1.13");
-    expect(body.state.sentence).toBe("I will love you until death takes me");
+    expect(body.state.sentence).toBe("You are mine, now and forever");
     expect(body.state.context_a.label).toBe("Wedding vow");
     expect(Object.keys(body.questions)).toEqual([
-      "plausibility_a",
-      "plausibility_b",
+      "appropriate_a",
+      "appropriate_b",
       "coherence",
-      "specificity",
     ]);
+  });
+
+  it("rates each world by Jev's weighted score, not its single likeliest level", async () => {
+    // The operator's playtest: an even 45/45 split between Filler and Fits.
+    // The likeliest level ties and falls to Filler; the weighted score is 1.59.
+    const split = {
+      type: "score",
+      score: 1.59,
+      probabilities: { "0": 0.02, "1": 0.45, "2": 0.45, "3": 0.08 },
+      confidence: 0.44,
+    };
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: "jev",
+            answers: {
+              appropriate_a: scoreAnswer(1, { score: 1.2 }),
+              appropriate_b: split,
+              coherence: scoreAnswer(3),
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    const draft = await runAdjudication(config, pair, "Some line", fetchMock);
+    expect(draft.levels).toEqual({ a: 1.2, b: 1.59, coherence: 3 });
+    expect(draft.composed).toMatchObject({ first: 1, second: 2, points: 3 });
   });
 
   it("retries overload with backoff, then succeeds", async () => {
@@ -107,12 +132,9 @@ describe("runAdjudication", () => {
       .fn()
       .mockResolvedValueOnce(new Response("busy", { status: 429 }))
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify(
-            response({ a: 2, b: 2, coherence: 2, specificity: 2 }),
-          ),
-          { status: 200 },
-        ),
+        new Response(JSON.stringify(response({ a: 2, b: 2, coherence: 2 })), {
+          status: 200,
+        }),
       );
     const draft = await runAdjudication(
       config,
@@ -121,7 +143,7 @@ describe("runAdjudication", () => {
       fetchMock,
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(draft.composed.points).toBe(3);
+    expect(draft.composed.points).toBe(4);
   });
 
   it("fails closed after repeated overload", async () => {
@@ -149,10 +171,9 @@ describe("runAdjudication", () => {
           JSON.stringify({
             model: "x",
             answers: {
-              plausibility_a: { type: "noul", noul: 0.9 },
-              plausibility_b: {},
+              appropriate_a: { type: "noul", noul: 0.9 },
+              appropriate_b: {},
               coherence: {},
-              specificity: {},
             },
           }),
           { status: 200 },

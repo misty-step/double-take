@@ -1,6 +1,13 @@
 import { spawn } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { chmod, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -11,6 +18,27 @@ export const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 export const BACKEND_URL = "http://127.0.0.1:3220";
 export const SITE_URL = "http://127.0.0.1:3221";
 export const WEB_URL = "http://localhost:3210";
+const JUDGE_DEFAULTS = {
+  JEV_MODEL: "typesafe/jev-1.13",
+  JEV_DECISIONS_URL: "https://openrouter.ai/api/alpha/decisions",
+};
+const JUDGE_KEYS = ["OPENROUTER_API_KEY", ...Object.keys(JUDGE_DEFAULTS)];
+
+/**
+ * Jev settings for the local backend, from the launching environment only
+ * (for example `pass-env run -e OPENROUTER_API_KEY=... -- pnpm dev`). The key is
+ * never written to .env.local; without it the backend keeps what it already has.
+ */
+function judgeSettings() {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) return null;
+  return {
+    OPENROUTER_API_KEY: key,
+    JEV_MODEL: process.env.JEV_MODEL || JUDGE_DEFAULTS.JEV_MODEL,
+    JEV_DECISIONS_URL:
+      process.env.JEV_DECISIONS_URL || JUDGE_DEFAULTS.JEV_DECISIONS_URL,
+  };
+}
 const ENV_FILE = join(ROOT, ".env.local");
 const LOCAL_DIR = join(ROOT, ".convex");
 const STATE_DIR = join(LOCAL_DIR, "local", "default");
@@ -269,7 +297,8 @@ export async function prepareLocalEnvironment({ create = false } = {}) {
       key.startsWith("CONVEX_") ||
       key.startsWith("PARLOR_") ||
       key.startsWith("DOUBLETAKE_") ||
-      key.startsWith("NEXT_PUBLIC_CONVEX_")
+      key.startsWith("NEXT_PUBLIC_CONVEX_") ||
+      JUDGE_KEYS.includes(key)
     )
       delete cliEnv[key];
   }
@@ -491,6 +520,7 @@ export async function configureBackend(processes, local, backend) {
     { mode: 0o600 },
   );
   await chmod(CONTROL_FILE, 0o600);
+  const judge = judgeSettings();
   await writeFile(
     SETTINGS_FILE,
     [
@@ -498,27 +528,40 @@ export async function configureBackend(processes, local, backend) {
       "PARLOR_GUEST_TOKEN_AUDIENCE=doubletake",
       "DOUBLETAKE_LOCAL=true",
       "PRODUCT_ENVIRONMENT=test",
+      ...(judge
+        ? Object.entries(judge).map(([key, value]) => `${key}=${value}`)
+        : []),
       "",
     ].join("\n"),
     { mode: 0o600 },
   );
   await chmod(SETTINGS_FILE, 0o600);
-  await processes.run(
-    process.execPath,
-    [
-      CLI,
-      "env",
-      "set",
-      "--from-file",
-      SETTINGS_FILE,
-      "--force",
-      "--env-file",
-      CONTROL_FILE,
-    ],
-    {
-      env: local.cliEnv,
-      label: "local Convex signing-key configuration",
-    },
+  try {
+    await processes.run(
+      process.execPath,
+      [
+        CLI,
+        "env",
+        "set",
+        "--from-file",
+        SETTINGS_FILE,
+        "--force",
+        "--env-file",
+        CONTROL_FILE,
+      ],
+      {
+        env: local.cliEnv,
+        label: "local Convex settings",
+      },
+    );
+  } finally {
+    // The settings file may carry the OpenRouter key; the deployment keeps it now.
+    await rm(SETTINGS_FILE, { force: true });
+  }
+  console.log(
+    judge
+      ? `Jev is configured for this local backend (${judge.JEV_MODEL}).`
+      : "Jev keeps whatever key this local backend already has. To set or replace it: pass-env run -e OPENROUTER_API_KEY=workstation/DOUBLETAKE_OPENROUTER_API_KEY -- pnpm dev",
   );
   if (backend.job) {
     const deadline = Date.now() + 120_000;
@@ -590,7 +633,15 @@ export async function startWeb(processes, local) {
       "3210",
     ],
     {
-      env: { ...process.env, ...local.values, NODE_ENV: "development" },
+      env: {
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(
+            ([key]) => !JUDGE_KEYS.includes(key),
+          ),
+        ),
+        ...local.values,
+        NODE_ENV: "development",
+      },
       label: "Double Take web server",
     },
   );

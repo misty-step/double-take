@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   checkSentence,
+  compareLines,
   composeResult,
   levelIndexFromProbabilities,
   levelIndexFromScore,
   normalizeSentence,
-  PLAUSIBILITY_POINTS,
   sanitizeSentence,
   wordCount,
 } from "../convex/rules";
@@ -48,66 +48,69 @@ describe("sentence validation", () => {
   });
 });
 
-describe("weakest-reading scoring", () => {
-  it("awards the weaker reading's points, not the average", () => {
-    const strong = composeResult({
-      plausibilityA: 3,
-      plausibilityB: 3,
-      coherence: 3,
-      specificity: 2,
-    });
-    expect(strong).toMatchObject({ weaker: 3, points: 6, gate: "ok" });
+const levels = (a: number, b: number, coherence = 3) => ({ a, b, coherence });
 
-    const lopsided = composeResult({
-      plausibilityA: 0,
-      plausibilityB: 3,
-      coherence: 2,
-      specificity: 2,
+describe("group scoring", () => {
+  it("adds both worlds' ratings together", () => {
+    expect(composeResult(levels(3, 3))).toEqual({
+      first: 3,
+      second: 3,
+      weaker: 3,
+      points: 6,
+      zero: null,
     });
-    expect(lopsided).toMatchObject({
-      weaker: 0,
+    expect(composeResult(levels(1, 3)).points).toBe(4);
+  });
+
+  it("rounds each world's weighted fit to the nearest rating", () => {
+    // An even split between Filler and Fits lands on Fits, not whichever tied.
+    expect(composeResult(levels(1.49, 1.59))).toMatchObject({
+      first: 1,
+      second: 2,
+      points: 3,
+    });
+    expect(composeResult(levels(2.51, 0.49))).toMatchObject({
+      first: 3,
+      second: 0,
+    });
+  });
+
+  it("lets filler score low in both worlds instead of vanishing", () => {
+    const filler = composeResult(levels(1.1, 1.2));
+    expect(filler).toMatchObject({ points: 2, zero: null });
+    expect(filler.points).toBeLessThan(composeResult(levels(2, 2)).points);
+  });
+
+  it("scores nothing when either world rejects the line, however strong the other", () => {
+    expect(composeResult(levels(0.4, 3))).toMatchObject({
       points: 0,
-      gate: "unreadable",
+      zero: "rejected",
     });
-
-    const surviving = composeResult({
-      plausibilityA: 1,
-      plausibilityB: 3,
-      coherence: 2,
-      specificity: 2,
-    });
-    expect(surviving).toMatchObject({ weaker: 1, points: 1, gate: "ok" });
+    // Without the floor, 3 + 0 would beat a line that is filler in both.
+    expect(composeResult(levels(1, 1)).points).toBeGreaterThan(
+      composeResult(levels(3, 0)).points,
+    );
   });
 
-  it("zeroes stitched independent clauses however balanced they are", () => {
-    const stitched = composeResult({
-      plausibilityA: 2,
-      plausibilityB: 2,
-      coherence: 0,
-      specificity: 2,
+  it("zeroes stitched halves before anything else, however well they fit", () => {
+    expect(composeResult(levels(3, 3, 1))).toMatchObject({
+      points: 0,
+      zero: "stitched",
     });
-    expect(stitched).toMatchObject({ points: 0, gate: "stitched" });
-    const almost = composeResult({
-      plausibilityA: 2,
-      plausibilityB: 2,
-      coherence: 1,
-      specificity: 2,
-    });
-    expect(almost).toMatchObject({ points: 0, gate: "stitched" });
+    expect(composeResult(levels(0, 3, 0))).toMatchObject({ zero: "stitched" });
   });
 
-  it("zeroes generic filler that fits any context", () => {
-    const generic = composeResult({
-      plausibilityA: 2,
-      plausibilityB: 2,
-      coherence: 3,
-      specificity: 0,
-    });
-    expect(generic).toMatchObject({ points: 0, gate: "generic" });
-  });
-
-  it("keeps the points table fixed and monotone", () => {
-    expect([...PLAUSIBILITY_POINTS]).toEqual([0, 1, 3, 6]);
+  it("ranks more points first and breaks equal points toward the balanced line", () => {
+    const lines = [
+      { name: "lopsided", ...composeResult(levels(3, 1)) },
+      { name: "perfect", ...composeResult(levels(3, 3)) },
+      { name: "balanced", ...composeResult(levels(2, 2)) },
+    ];
+    expect(lines.sort(compareLines).map((line) => line.name)).toEqual([
+      "perfect",
+      "balanced",
+      "lopsided",
+    ]);
   });
 });
 

@@ -43,7 +43,14 @@ export default defineSchema({
     gameId: v.id("games"),
     round: v.number(),
     pairKey: v.string(),
-    deadline: v.number(),
+    /** Set once all but one seated player have locked in: the last player's clock. */
+    lastDeadline: v.optional(v.number()),
+    /** The shared reveal clock; every phone derives the current line from it. */
+    revealStartedAt: v.optional(v.number()),
+    /** Judged submissions in reveal order, lowest points first. */
+    revealOrder: v.optional(v.array(v.id("submissions"))),
+    /** Retired 150 s writing window; kept optional so rounds written before group play still validate. */
+    deadline: v.optional(v.number()),
   }).index("by_game_round", ["gameId", "round"]),
   submissions: defineTable({
     gameId: v.id("games"),
@@ -55,7 +62,8 @@ export default defineSchema({
     status: submissionStatus,
     adjudicationId: v.optional(v.id("adjudications")),
     failureCode: v.optional(v.string()),
-    revision: v.number(),
+    /** Retired revision counter (one line per round now); optional for rows written before group play. */
+    revision: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_game_round", ["gameId", "round"])
@@ -65,16 +73,26 @@ export default defineSchema({
     normalized: v.string(),
     rubricVersion: v.string(),
     model: v.string(),
-    levels: v.object({
-      plausibilityA: v.number(),
-      plausibilityB: v.number(),
-      coherence: v.number(),
-      specificity: v.number(),
-    }),
+    levels: v.union(
+      /** rubric@3: weighted fit per world (0 to 3) and the coherence level. */
+      v.object({ a: v.number(), b: v.number(), coherence: v.number() }),
+      /** rubric@2 and earlier; kept so existing rows validate. Never scored now. */
+      v.object({
+        plausibilityA: v.number(),
+        plausibilityB: v.number(),
+        coherence: v.number(),
+        specificity: v.number(),
+      }),
+    ),
+    /**
+     * Cached composition at write time. Reveals always recompose from `levels`
+     * (convex/rules.ts), so rows written under the old points table stay usable.
+     */
     weaker: v.number(),
     points: v.number(),
     gate: v.string(),
-    gateMessage: v.string(),
+    /** Retired player note; optional for rows written before group play. */
+    gateMessage: v.optional(v.string()),
     confidenceMin: v.number(),
     rawJson: v.string(),
     createdAt: v.number(),
