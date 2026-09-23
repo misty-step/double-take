@@ -18,45 +18,31 @@ const libreFranklin = Libre_Franklin({
   display: "swap",
 });
 const description =
-  "Everyone gets the same two worlds. Write the line that fits both best.";
+  "A party game for 2 to 8 phones. Everyone gets the same two worlds; write the line that fits both.";
 
+/** Icons, the manifest, and the share image come from app/icon, apple-icon, manifest, and opengraph-image. */
 export const metadata: Metadata = {
   metadataBase: new URL("https://doubletake.mistystep.io"),
   title: "Double Take",
   description,
   applicationName: "Double Take",
-  icons: {
-    icon: [
-      {
-        url: "/brand/double-take-mark-16.svg",
-        sizes: "16x16",
-        type: "image/svg+xml",
-      },
-      {
-        url: "/brand/double-take-mark-32.svg",
-        sizes: "32x32",
-        type: "image/svg+xml",
-      },
-      {
-        url: "/brand/double-take-mark.svg",
-        sizes: "any",
-        type: "image/svg+xml",
-      },
-    ],
+  appleWebApp: {
+    capable: true,
+    title: "Double Take",
+    statusBarStyle: "default",
   },
+  formatDetection: { telephone: false },
   openGraph: {
     title: "Double Take",
     description,
     type: "website",
     url: "https://doubletake.mistystep.io",
     siteName: "Double Take",
-    images: ["/brand/double-take-share.svg"],
   },
   twitter: {
     card: "summary_large_image",
     title: "Double Take",
     description,
-    images: ["/brand/double-take-share.svg"],
   },
 };
 

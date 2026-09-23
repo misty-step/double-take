@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Double Take marks</title>
+<style>
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #fff; color: #000; }
+  .row { display: grid; grid-template-columns: 180px repeat(3, 1fr); border-bottom: 1px solid #ddd; }
+  .name { padding: 16px; }
+  .name b { display: block; font-size: 16px; }
+  .cell { display: flex; align-items: center; gap: 18px; padding: 16px; }
+  .light { background: #fff; }
+  .tab { background: #dee1e6; }
+  .dark { background: #202124; color: #fff; }
+  .cell svg:nth-child(1) { width: 16px; height: 16px; }
+  .cell svg:nth-child(2) { width: 32px; height: 32px; }
+  .cell svg:nth-child(3) { width: 48px; height: 48px; }
+  .cell svg:nth-child(4) { width: 120px; height: 120px; }
+  header { display: grid; grid-template-columns: 180px repeat(3, 1fr); font-weight: 600; }
+  header div { padding: 8px 16px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- A. Seam: the writing screen in miniature. World A, the line on white, world B. -->
+    <symbol id="seam" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="15" fill="#16203A"/>
+      <path d="M0 15A15 15 0 0 1 15 0h34a15 15 0 0 1 15 15v11H0z" fill="#F8DCE1"/>
+      <rect y="26" width="64" height="12" fill="#fff"/>
+      <rect x="14" y="30" width="36" height="4" rx="2" fill="#000"/>
+    </symbol>
+    <!-- B. Split bubble: one speech bubble, two worlds, split on the diagonal. -->
+    <symbol id="bubble" viewBox="0 0 64 64">
+      <clipPath id="bubble-clip"><path d="M32 6C16.5 6 5 15.6 5 28.5c0 7.4 3.8 13.9 9.9 18.1L12 58l13.6-7.4c2 .4 4.2.6 6.4.6 15.5 0 27-9.9 27-22.7S47.5 6 32 6z"/></clipPath>
+      <g clip-path="url(#bubble-clip)">
+        <rect width="64" height="64" fill="#16203A"/>
+        <path d="M0 0h64L0 64z" fill="#F8DCE1"/>
+      </g>
+      <path d="M32 6C16.5 6 5 15.6 5 28.5c0 7.4 3.8 13.9 9.9 18.1L12 58l13.6-7.4c2 .4 4.2.6 6.4.6 15.5 0 27-9.9 27-22.7S47.5 6 32 6z" fill="none" stroke="#16203A" stroke-width="3"/>
+    </symbol>
+    <!-- C. Two quotes: an opening quote in each world, the second one a beat late. -->
+    <symbol id="quotes" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="15" fill="#fff"/>
+      <path d="M8 40c0-12 6-21 16-25l2 4c-5 3-7 7-7 11h1a8 8 0 1 1-12 10z" fill="#E86F8C"/>
+      <path d="M32 44c0-12 6-21 16-25l2 4c-5 3-7 7-7 11h1a8 8 0 1 1-12 10z" fill="#16203A"/>
+    </symbol>
+    <!-- D. Take two: two cards, same line, the back one offset like a second look. -->
+    <symbol id="cards" viewBox="0 0 64 64">
+      <rect x="14" y="4" width="46" height="38" rx="9" fill="#16203A"/>
+      <rect x="4" y="22" width="46" height="38" rx="9" fill="#F8DCE1" stroke="#16203A" stroke-width="3"/>
+      <rect x="13" y="39" width="28" height="4" rx="2" fill="#16203A"/>
+    </symbol>
+    <!-- E. Seam, bold: A with the line as the hero and no inner white band at small sizes. -->
+    <symbol id="seam-bold" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="15" fill="#16203A"/>
+      <path d="M0 15A15 15 0 0 1 15 0h34a15 15 0 0 1 15 15v17H0z" fill="#F8DCE1"/>
+      <rect x="9" y="27" width="46" height="10" rx="5" fill="#fff" stroke="#16203A" stroke-width="3"/>
+    </symbol>
+  </defs>
+</svg>
+<header><div>Concept</div><div>White page</div><div>Browser tab (light)</div><div>Dark</div></header>
+<div id="rows"></div>
+<script>
+  const concepts = [
+    ["seam", "A. Seam", "The writing screen: world, line, world."],
+    ["seam-bold", "E. Seam, bold", "Same idea; one fat line pill carries at 16 px."],
+    ["bubble", "B. Split bubble", "One thing said, split between two worlds."],
+    ["quotes", "C. Two quotes", "Speech, twice; the second a beat later."],
+    ["cards", "D. Take two", "The same line on two stacked cards."],
+  ];
+  const rows = document.getElementById("rows");
+  for (const [id, name, note] of concepts) {
+    const icons = Array.from({ length: 4 }, () => `<svg><use href="#${id}"/></svg>`).join("");
+    rows.insertAdjacentHTML("beforeend", `<div class="row" data-id="${id}"><div class="name"><b>${name}</b>${note}</div>
+      <div class="cell light">${icons}</div><div class="cell tab">${icons}</div><div class="cell dark">${icons}</div></div>`);
+  }
+</script>
+</body>
+</html>

@@ -1,9 +1,9 @@
 export const CONNECTION_UNAVAILABLE =
-  "That didn't go through. Check your connection and try again.";
+  "That didn’t go through. Check your connection and try again.";
 export const SEAT_RECOVERY_UNAVAILABLE =
-  "We couldn't restore your seat. Check your connection and try again.";
+  "We couldn’t restore your seat. Check your connection and try again.";
 export const SEAT_RESET_UNAVAILABLE =
-  "We couldn't start a fresh seat. Check your connection and try again.";
+  "We couldn’t start a fresh seat. Check your connection and try again.";
 
 const FAILURE_COPY = {
   join: {
@@ -12,7 +12,7 @@ const FAILURE_COPY = {
     ROOM_FULL: "That game is full.",
     INVALID_DISPLAY_NAME: "Add your name so everyone knows who wrote what.",
     ROOM_JOIN_RATE_LIMIT: "Too many tries. Wait a minute, then try again.",
-    ROOM_DATA_INVALID: "That game isn't available. Ask for a new invite.",
+    ROOM_DATA_INVALID: "That game isn’t available. Ask for a new invite.",
   },
   start: {
     HOST_REQUIRED: "Only the host can start the game.",
@@ -27,17 +27,17 @@ const FAILURE_COPY = {
   submit: {
     WRONG_PHASE: "This round is already over.",
     ALREADY_LOCKED: "Your line is already locked in.",
-    NOT_SEATED: "You're watching this round. You can play in the next game.",
+    NOT_SEATED: "You’re watching this round. You can play in the next game.",
     SENTENCE_EMPTY: "Write one line before locking it in.",
     SENTENCE_TOO_LONG: "Keep your line under 160 characters.",
     TOO_MANY_WORDS: "One line, twelve words at most.",
     NO_LETTERS: "Use at least one letter or number.",
-    SLOW_DOWN: "That's a lot of lines at once. Wait a minute, then try again.",
+    SLOW_DOWN: "That’s a lot of lines at once. Wait a minute, then try again.",
   },
   advance: {
     WRONG_PHASE: "This round has already moved on.",
     HOST_REQUIRED:
-      "The host starts the next round. You can step in if they're away.",
+      "The host starts the next round. You can step in if they’re away.",
     REVEAL_RUNNING: "Wait until every line has been shown.",
   },
 } as const;

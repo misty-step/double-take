@@ -3,6 +3,8 @@
   --ink: #000;
   --ink-2: #595959;
   --rule: #e0e0e0;
+  /* Errors: 6.5:1 on white, and always paired with words. */
+  --alert: #b3261e;
   --serif: var(--font-newsreader), Georgia, "Times New Roman", serif;
   --sans: var(--font-libre-franklin), "Helvetica Neue", Arial, sans-serif;
   --header: 56px;
@@ -105,6 +107,22 @@ input {
   border-bottom: 1px solid var(--rule);
   background: var(--page);
 }
+/* During a reveal the bar wears the current world. Going to world B it waits
+ * for the wipe to reach the top before it changes. */
+.bar.toned {
+  background: var(--bg);
+  color: var(--wink);
+  border-bottom-color: transparent;
+}
+.bar.toned[data-side="b"] {
+  transition:
+    background-color 160ms linear 560ms,
+    color 160ms linear 560ms;
+}
+.bar.toned .bar-note {
+  color: inherit;
+  opacity: 0.85;
+}
 .home {
   display: flex;
   align-items: center;
@@ -196,6 +214,10 @@ input {
   display: grid;
   gap: 10px;
   justify-items: center;
+  width: 100%;
+}
+.actions .btn {
+  width: min(100%, 20rem);
 }
 .meta {
   margin: 0;
@@ -236,9 +258,32 @@ h1.title {
 }
 .alert {
   margin: 0;
+  color: var(--alert);
   font-weight: 600;
   font-size: 15px;
   text-align: center;
+}
+.field input[aria-invalid] {
+  border-color: var(--alert);
+  box-shadow: inset 0 0 0 1px var(--alert);
+}
+.hint {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+/* Entry forms: one column, labels above fields, the action at full width. */
+.page.form {
+  gap: 20px;
+}
+.page.form .title {
+  margin-bottom: 4px;
+}
+.page.form .alert {
+  text-align: left;
+}
+.page.form .btn {
+  width: 100%;
 }
 .code-block {
   display: grid;
@@ -310,7 +355,84 @@ h1.title {
   text-align: center;
   text-wrap: balance;
 }
+/* Home: the game in miniature. The hero wipes in like a reveal. */
+.home-screen {
+  min-height: calc(100dvh - var(--header));
+  display: flex;
+  flex-direction: column;
+}
+.home-hero {
+  flex: 1 1 auto;
+  min-height: 22rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  animation: home-wipe var(--wipe) var(--ease-wipe);
+}
+@keyframes home-wipe {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.home-hero .world-label {
+  font-size: clamp(26px, 7.4vw, 40px);
+}
+.home-band {
+  padding: 20px 24px;
+  gap: 12px;
+}
+.home-line {
+  margin: 0;
+  max-width: 20ch;
+  text-align: center;
+  font: 400 clamp(26px, 7.2vw, 36px)/1.15 var(--serif);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.home-ratings {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 16px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.home-ratings b {
+  color: var(--ink);
+}
+.home-foot {
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: 22px 20px calc(24px + env(safe-area-inset-bottom));
+  display: grid;
+  gap: 10px;
+}
+.home-foot .lede {
+  margin-bottom: 8px;
+  font-size: 20px;
+  text-align: center;
+}
+/* A world's swatch beside its rating word. */
+.rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 18%);
+}
 .band {
+  position: relative;
   flex: none;
   background: var(--page);
   padding: 16px 20px;
@@ -318,17 +440,28 @@ h1.title {
   justify-items: center;
   gap: 10px;
 }
+/* The last player's clock: a bar that drains across the top of the band. */
+.clock {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 4px;
+  width: calc(var(--left) * 100%);
+  background: var(--ink);
+  transition: width 1s linear;
+}
+/* Grows with the line (see Seam); three lines at most, then it scrolls. */
 .band textarea {
   width: min(100%, 30rem);
-  min-height: 2.5rem;
-  max-height: 6rem;
+  max-height: calc(3 * 1.2em);
   border: 0;
   resize: none;
   background: transparent;
   padding: 0;
   font: 400 clamp(24px, 6.8vw, 32px)/1.2 var(--serif);
   text-align: center;
-  overflow: auto;
+  overflow-y: auto;
+  text-wrap: balance;
 }
 .band textarea::placeholder {
   color: #767676;
@@ -581,55 +714,54 @@ h1.title {
   font-size: 14px;
   color: var(--ink-2);
 }
-/* Round result: one card per line, all flipped together by the world toggle. */
-.world-toggle {
-  display: flex;
-  justify-self: center;
-  border: 1.5px solid var(--ink);
-  border-radius: 999px;
-  padding: 3px;
+/* Round result: the winning line as a card, then every line as a ranked row. */
+.winner {
+  margin: 0;
 }
-.world-toggle button {
-  min-height: 40px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  cursor: pointer;
-  font: 600 14px/1 var(--sans);
-}
-.world-toggle button[aria-checked="true"] {
-  background: var(--ink);
-  color: var(--page);
-}
-.world-toggle button:focus-visible {
-  outline-color: var(--ink);
-}
-.lines {
+.ranked {
   list-style: none;
   margin: 0;
   padding: 0;
+  border-top: 1px solid var(--rule);
+}
+.ranked li {
   display: grid;
-  gap: 18px;
+  grid-template-columns: 2.25rem 1fr;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule);
 }
-.lines .card {
-  height: 11.5rem;
+.ranked .pts {
+  font: 600 28px/1 var(--serif);
+  text-align: right;
 }
-.line-by {
+.row-line {
+  margin: 0;
+  font: 400 20px/1.25 var(--serif);
+  overflow-wrap: anywhere;
+}
+.row-meta {
+  margin: 6px 0 0;
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 8px 4px 0;
-  font-size: 15px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  font-size: 14px;
+  color: var(--ink-2);
 }
-.line-by .pts {
-  font: 600 26px/1 var(--serif);
-  min-width: 1.4ch;
-}
-.line-by b {
+.row-meta b {
+  color: var(--ink);
   font-weight: 600;
 }
-.line-by .reason {
+.row-body .row-meta:first-child {
+  margin-top: 4px;
+}
+/* Final: the winner is the headline. */
+h1.final-title {
+  font-size: clamp(40px, 11vw, 52px);
+}
+.final-heading .lede {
+  font-size: 20px;
   color: var(--ink-2);
 }
 .standings {
@@ -721,14 +853,14 @@ dialog::backdrop {
 .menu .btn.wide {
   width: 100%;
 }
-.howto .lede {
-  font-size: 21px;
-}
-.howto ul {
+.steps {
   margin: 0;
-  padding-left: 1.1rem;
+  padding-left: 1.3rem;
   display: grid;
   gap: 8px;
+}
+.steps li::marker {
+  font: 600 15px var(--serif);
 }
 .howto .card {
   height: 12rem;
@@ -780,6 +912,13 @@ dialog::backdrop {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .home-hero {
+    animation: none;
+  }
+  .bar.toned[data-side="b"],
+  .clock {
+    transition: none;
+  }
   .flooding .band,
   .flooding .world-a,
   .flooding .world-b {
