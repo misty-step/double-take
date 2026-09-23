@@ -22,6 +22,8 @@
   "vars": {
     "NEXT_PUBLIC_CONVEX_URL": "https://proper-albatross-726.convex.cloud",
     "NEXT_PUBLIC_CONVEX_SITE_URL": "https://proper-albatross-726.convex.site",
-    "PARLOR_GUEST_TOKEN_AUDIENCE": "doubletake"
+    "PARLOR_GUEST_TOKEN_AUDIENCE": "doubletake",
+    "SENTRY_DSN": "https://b3948f80440cec18b4d48100098dae49@o4510313803677696.ingest.us.sentry.io/4512124907421696",
+    "NEXT_PUBLIC_SENTRY_DSN": "https://b3948f80440cec18b4d48100098dae49@o4510313803677696.ingest.us.sentry.io/4512124907421696"
   }
 }

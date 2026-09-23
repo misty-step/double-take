@@ -14,6 +14,15 @@ in `pass` and in Convex deployment env.
 
 ## 2. Build
 
+Credentials come from pass through `pass-env`; `.env.pass` lists the entry names
+(Sentry auth token included). The Sentry DSN is public and lives in `wrangler.jsonc`.
+Build with source map upload:
+
+```sh
+SENTRY_ORG=misty-step SENTRY_PROJECT=double-take APP_RELEASE=$(git rev-parse HEAD) \
+  pass-env run -f .env.pass -- pnpm exec opennextjs-cloudflare build
+```
+
 ```sh
 pnpm install --frozen-lockfile
 pnpm check            # build:parlor + typecheck + tests
