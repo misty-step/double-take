@@ -1,5 +1,5 @@
-import { DoubleTake } from "../components/double-take";
+import { ClientGame } from "../components/client-game";
 
 export default function Page() {
-  return <DoubleTake />;
+  return <ClientGame />;
 }
