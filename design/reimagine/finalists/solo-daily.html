@@ -1,0 +1,936 @@
+<!doctype html>
+<!--
+  Double Take, synthesis prototype "One Line".
+  Judge is simulated by ../shared/game.js. Not production code.
+
+  QA hash states (instant, no animation):
+    #state=splash            #state=invite            #state=howto
+    #state=write             #state=write-typing      #state=write-over
+    #state=write-retry       #state=write-error       #state=judging
+    #state=reveal-a          #state=reveal-b
+    #state=result-lands      #state=result-close      #state=result-double-take
+    #state=result-stitched   #state=result-generic    #state=result-last
+    #state=finish            #state=finish-toast      #state=finish-duel
+    #state=archive
+  Other hash flags: #fail=1 (next submit fails), #reset (clear saved play)
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Double Take</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap"
+    />
+    <style>
+      :root {
+        --page: #ffffff;
+        --ink: #000000;
+        --ink-2: #595959;
+        --rule: #e0e0e0;
+        --serif: "Newsreader", Georgia, "Times New Roman", serif;
+        --sans: "Libre Franklin", "Helvetica Neue", Arial, sans-serif;
+        --header: 56px;
+        --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --ease-wipe: cubic-bezier(0.65, 0, 0.35, 1);
+        --wipe: 720ms;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        background: var(--page);
+        color: var(--ink);
+        font: 400 16px/1.45 var(--sans);
+        -webkit-font-smoothing: antialiased;
+        -webkit-tap-highlight-color: transparent;
+      }
+      button, textarea { font: inherit; color: inherit; }
+      :focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+      [hidden] { display: none !important; }
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+      /* Buttons: one primary shape, one secondary shape, one quiet text shape. */
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 48px; padding: 0 28px; border-radius: 999px;
+        border: 1.5px solid var(--ink); background: var(--page); color: var(--ink);
+        font: 600 16px/1 var(--sans); cursor: pointer;
+        transition: transform 120ms var(--ease-out), background 120ms;
+      }
+      .btn:active { transform: scale(0.97); }
+      .btn.primary { background: var(--ink); color: var(--page); }
+      .btn:focus-visible, .toggle button:focus-visible { outline-color: var(--ink); }
+      .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+      .btn.wide { min-width: 200px; }
+      .quiet {
+        min-height: 44px; padding: 0 12px; border: 0; background: none;
+        font: 600 15px/1 var(--sans); text-decoration: underline; text-underline-offset: 4px; cursor: pointer;
+      }
+
+      /* Mark: two worlds and the white seam between them. */
+      .mark { display: block; flex: none; }
+
+      /* Header */
+      .bar {
+        position: relative; z-index: 3; height: var(--header);
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 8px 0 16px; border-bottom: 1px solid var(--rule); background: var(--page);
+      }
+      .home { display: flex; align-items: center; gap: 10px; min-height: 44px; border: 0; background: none; cursor: pointer; padding: 0; }
+      .home span { font: 600 21px/1 var(--serif); letter-spacing: -0.01em; }
+      .icon-btn {
+        width: 44px; height: 44px; border-radius: 50%; border: 0; background: none; cursor: pointer;
+        display: grid; place-items: center;
+      }
+      .icon-btn svg { width: 24px; height: 24px; }
+
+      /* Splash */
+      .splash {
+        min-height: 100dvh; display: grid; place-items: center; padding: 32px 24px;
+        text-align: center;
+      }
+      .splash-inner { display: grid; justify-items: center; gap: 18px; max-width: 22rem; }
+      .splash h1 { margin: 6px 0 0; font: 600 44px/1 var(--serif); letter-spacing: -0.02em; }
+      .splash .rule { margin: 0; font: 400 22px/1.3 var(--serif); text-wrap: balance; }
+      .splash .actions { display: grid; gap: 10px; justify-items: center; margin-top: 10px; }
+      .splash .meta { margin: 8px 0 0; color: var(--ink-2); font-size: 14px; }
+      .splash .meta b { color: var(--ink); font-weight: 600; }
+      .invite-note { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+      /* Seam: write between the two worlds */
+      .seam { height: calc(100dvh - var(--header)); display: flex; flex-direction: column; }
+      .world {
+        flex: 1 1 0; min-height: 76px; display: grid; place-items: center; padding: 12px 20px;
+        background: var(--bg); color: var(--wink);
+        transition: flex-grow 460ms var(--ease-out);
+      }
+      .world-label { margin: 0; font: italic 400 clamp(30px, 9vw, 44px)/1.1 var(--serif); letter-spacing: -0.01em; text-align: center; text-wrap: balance; }
+      .band {
+        flex: none; background: var(--page); padding: 18px 20px 16px;
+        display: grid; justify-items: center; gap: 10px;
+        transition: opacity 200ms, padding 460ms var(--ease-out);
+      }
+      .band textarea {
+        width: min(100%, 30rem); border: 0; resize: none; background: transparent; padding: 0;
+        font: 400 clamp(24px, 6.8vw, 32px)/1.2 var(--serif); text-align: center; overflow: hidden;
+      }
+      .band textarea::placeholder { color: #767676; }
+      .band textarea:focus-visible { outline: none; }
+      .band:focus-within { box-shadow: inset 0 -2px 0 var(--ink); }
+      .hint { margin: 0; color: var(--ink-2); font-size: 14px; text-align: center; max-width: 30rem; }
+      .status { min-height: 20px; margin: 0; color: var(--ink-2); font-size: 14px; }
+      .status.over { color: var(--ink); font-weight: 700; }
+      .alert { margin: 0; font-weight: 600; font-size: 15px; text-align: center; }
+      .seam.flooding .world-a { flex-grow: 40; }
+      .seam.flooding .world-b { flex-grow: 0; min-height: 0; padding: 0; }
+      .seam.flooding .world-b .world-label { opacity: 0; }
+      .seam.flooding .band { opacity: 0; }
+
+      /* Stage: the same sentence in two worlds, one layer per world */
+      .reveal { position: relative; height: calc(100dvh - var(--header)); overflow: hidden; }
+      .stage { position: absolute; inset: 0; cursor: pointer; }
+      .stage:focus-visible { outline: 3px solid var(--ring, var(--ink)); outline-offset: -8px; }
+      .layer {
+        position: absolute; inset: 0; padding: 24px 24px 0;
+        display: grid; grid-template-rows: 1fr auto 1fr; justify-items: center; text-align: center;
+        background: var(--bg); color: var(--wink);
+      }
+      .layer-b { clip-path: inset(100% 0 0 0); }
+      .stage[data-side="b"] .layer-b { clip-path: inset(0 0 0 0); }
+      .reveal.sheet-open .layer { grid-template-rows: 0.55fr auto 1fr; }
+      .layer { transition: grid-template-rows 360ms var(--ease-out), clip-path var(--wipe) var(--ease-wipe); }
+      .layer .world-label { align-self: end; margin-bottom: 28px; font-size: clamp(20px, 5.4vw, 26px); }
+      .line {
+        margin: 0; width: min(100%, 20ch); font: 400 clamp(34px, 9.6vw, 52px)/1.1 var(--serif);
+        letter-spacing: -0.012em; text-wrap: balance;
+      }
+      .verdict { align-self: start; margin-top: 26px; display: grid; justify-items: center; gap: 8px; min-height: 52px; }
+      .verdict .word { font: 600 17px/1 var(--sans); }
+      .pips { display: flex; gap: 6px; }
+      .pip { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid currentColor; opacity: 0.4; }
+      .pip.on { background: currentColor; opacity: 1; }
+      .verdict .pip { transform: scale(0.4); opacity: 0; transition: transform 220ms var(--ease-out), opacity 220ms; }
+      .verdict.shown .pip { transform: scale(1); opacity: 0.4; }
+      .verdict.shown .pip.on { opacity: 1; }
+      .verdict .word { opacity: 0; transition: opacity 220ms 200ms; }
+      .verdict.shown .word { opacity: 1; }
+      .verdict.shown .pip:nth-child(2) { transition-delay: 70ms; }
+      .verdict.shown .pip:nth-child(3) { transition-delay: 140ms; }
+      @keyframes breathe { 50% { opacity: 0.45; } }
+      .waiting .verdict .pip { transform: none; opacity: 0.4; animation: breathe 1.4s ease-in-out infinite; }
+      .waiting .verdict .pip:nth-child(2) { animation-delay: 160ms; }
+      .waiting .verdict .pip:nth-child(3) { animation-delay: 320ms; }
+      .tap { margin: 6px 0 0; font-size: 14px; opacity: 0; transition: opacity 300ms 400ms; }
+      .stage.interactive .tap { opacity: 0.8; }
+
+      /* Result sheet */
+      .sheet {
+        position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; cursor: default;
+        background: var(--page); color: var(--ink); border-radius: 20px 20px 0 0;
+        padding: 22px 20px calc(18px + env(safe-area-inset-bottom));
+        display: grid; justify-items: center; gap: 12px; text-align: center;
+        transform: translateY(105%); transition: transform 360ms var(--ease-out);
+        box-shadow: 0 -1px 0 var(--rule);
+      }
+      .reveal.sheet-open .sheet { transform: none; }
+      .sheet h2 { margin: 0; font: 600 40px/1 var(--serif); letter-spacing: -0.02em; }
+      .sheet .why { margin: 0; font-size: 16px; max-width: 26rem; text-wrap: balance; }
+      .sides { display: grid; grid-template-columns: auto auto auto auto; column-gap: 10px; row-gap: 8px; align-items: center; margin: 2px 0 4px; }
+      .side-row { display: contents; font-size: 15px; }
+      .swatch { width: 14px; height: 14px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 1px rgb(0 0 0 / 22%); flex: none; }
+      .side-row > span:nth-child(2) { text-align: left; padding-right: 8px; }
+      .side-row .pips { color: var(--ink); }
+      .side-row .pip { width: 10px; height: 10px; border-radius: 3px; }
+      .side-row b { font-weight: 600; text-align: left; }
+      .sheet .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+      .sheet .count { margin: 0; font-size: 13px; color: var(--ink-2); }
+
+      /* Finish */
+      .finish { max-width: 30rem; margin: 0 auto; padding: 28px 20px 56px; display: grid; gap: 28px; }
+      .finish-head { text-align: center; display: grid; gap: 6px; }
+      .finish-head p { margin: 0; color: var(--ink-2); font-size: 14px; }
+      .finish-head h1 { margin: 0; font: 600 52px/1 var(--serif); letter-spacing: -0.02em; }
+      .card {
+        position: relative; height: 15.5rem; border-radius: 18px; overflow: hidden; cursor: pointer;
+        border: 0; padding: 0; width: 100%; text-align: center; display: block;
+      }
+      .card .layer { padding: 16px 20px; grid-template-rows: 1fr auto 1fr; }
+      .card .world-label { margin-bottom: 14px; font-size: 18px; }
+      .card .line { font-size: clamp(24px, 6.6vw, 30px); width: min(100%, 22ch); }
+      .card .verdict { margin-top: 14px; min-height: 0; }
+      .card .verdict .pip, .card .verdict .word { transform: none; opacity: 1; transition: none; }
+      .card .verdict .pip:not(.on) { opacity: 0.4; }
+      .card[data-side="b"] .layer-b { clip-path: inset(0 0 0 0); }
+      .card.small { height: 10rem; }
+      .card.small .line { font-size: 22px; }
+      .caption { margin: 8px 0 0; text-align: center; font-size: 14px; color: var(--ink-2); }
+      .tries { display: grid; grid-template-columns: auto 1fr; column-gap: 16px; row-gap: 10px; align-items: center; margin: 0; padding: 0; list-style: none; }
+      .tries li { display: contents; }
+      .tries .grid { display: flex; align-items: center; gap: 6px; }
+      .tries .grid .swatch { width: 10px; height: 10px; }
+      .tries .grid .pips { gap: 3px; margin-right: 8px; }
+      .tries .pip { width: 11px; height: 11px; border-radius: 3px; opacity: 1; border-color: rgb(0 0 0 / 35%); }
+      .tries .pip.on { background: var(--ink); border-color: var(--ink); }
+      .tries .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--serif); font-size: 17px; }
+      .tries .cut { color: var(--ink-2); font-size: 14px; }
+      .row-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+      .section { display: grid; gap: 14px; }
+      .section h2 { margin: 0; font: 600 24px/1.1 var(--serif); text-align: center; }
+      .section > p { margin: 0; text-align: center; color: var(--ink-2); font-size: 15px; }
+      .toggle { display: flex; justify-content: center; }
+      .toggle [role="radiogroup"] { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 999px; padding: 3px; }
+      .toggle button {
+        min-height: 40px; padding: 0 16px; border-radius: 999px; border: 0; background: none; cursor: pointer;
+        font: 600 14px/1 var(--sans);
+      }
+      .toggle button[aria-checked="true"] { background: var(--ink); color: var(--page); }
+      .stack { display: grid; gap: 12px; }
+      .byline { margin: 6px 0 0; font-size: 14px; text-align: center; }
+      .duel { display: grid; gap: 10px; }
+      .duel .card { height: 11rem; }
+      .duel .card .line { font-size: 22px; }
+      .duel .card .world-label { font-size: 16px; }
+      @media (min-width: 560px) {
+        .duel { grid-template-columns: 1fr 1fr; }
+        .duel .card { height: 13rem; }
+        .duel .card .line { font-size: 20px; }
+      }
+      .verdict-line { margin: 0; text-align: center; font: 600 20px/1.2 var(--serif); }
+      .foot { display: grid; justify-items: center; gap: 4px; color: var(--ink-2); font-size: 14px; text-align: center; }
+      .foot .quiet { color: var(--ink); }
+
+      /* Archive */
+      .archive { max-width: 30rem; margin: 0 auto; padding: 24px 20px 56px; }
+      .archive h1 { margin: 0 0 16px; font: 600 32px/1.1 var(--serif); }
+      .archive ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+      .archive li button {
+        width: 100%; min-height: 64px; display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center;
+        border: 0; border-bottom: 1px solid var(--rule); background: none; padding: 10px 4px; cursor: pointer; text-align: left;
+      }
+      .archive .dots { display: grid; grid-template-rows: 1fr 1fr; width: 22px; height: 22px; border-radius: 6px; overflow: hidden; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 15%); }
+      .archive .t { display: grid; gap: 2px; }
+      .archive .t b { font: 400 18px/1.2 var(--serif); }
+      .archive .t small { color: var(--ink-2); font-size: 13px; }
+      .archive .r { font-weight: 600; font-size: 14px; }
+
+      /* How to play dialog */
+      dialog {
+        width: min(100% - 24px, 28rem); max-height: calc(100dvh - 24px); border: 0; border-radius: 20px; padding: 0;
+        color: var(--ink); background: var(--page);
+      }
+      dialog::backdrop { background: rgb(0 0 0 / 45%); }
+      .howto { padding: 22px 22px 24px; display: grid; gap: 16px; }
+      .howto-top { display: flex; justify-content: space-between; align-items: center; }
+      .howto h2 { margin: 0; font: 600 28px/1 var(--serif); }
+      .howto .lede { margin: 0; font: 400 21px/1.3 var(--serif); }
+      .howto ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 8px; }
+      .ranks { display: flex; justify-content: space-between; gap: 6px; margin: 0; padding: 0; list-style: none; }
+      .ranks li { display: grid; justify-items: center; gap: 6px; font-size: 13px; font-weight: 600; text-align: center; }
+      .ranks .pips { gap: 3px; }
+      .ranks .pip { width: 9px; height: 9px; border-radius: 2px; }
+
+      /* Toast */
+      .toast {
+        position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 10;
+        transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
+        background: var(--ink); color: var(--page); border-radius: 999px; padding: 12px 20px;
+        font-weight: 600; font-size: 15px; transition: opacity 180ms, transform 180ms var(--ease-out);
+        width: max-content; max-width: calc(100vw - 32px); text-align: center;
+      }
+      .toast.show { opacity: 1; transform: translate(-50%, 0); }
+      @media (min-width: 720px) { .sheet { max-width: 34rem; margin-inline: auto; } }
+
+      @media (min-width: 720px) {
+        .seam, .reveal { height: calc(100dvh - var(--header)); }
+        .band { padding: 26px 24px 22px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        :root { --wipe: 1ms; }
+        .layer-b { transition: opacity 160ms linear; clip-path: none; opacity: 0; }
+        .stage[data-side="b"] .layer-b, .card[data-side="b"] .layer-b { opacity: 1; }
+        .world, .band, .sheet, .toast, .verdict .pip, .verdict .word { transition-duration: 1ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="mark" viewBox="0 0 32 32">
+        <rect width="32" height="32" rx="7" fill="#F8DCE1" />
+        <path d="M0 17h32v8a7 7 0 0 1-7 7H7a7 7 0 0 1-7-7z" fill="#16203A" />
+        <rect y="13" width="32" height="5" fill="#fff" />
+        <rect x="7" y="14.75" width="18" height="1.5" rx=".75" fill="#000" />
+        <rect x=".5" y=".5" width="31" height="31" rx="6.5" fill="none" stroke="#000" stroke-opacity=".12" />
+      </symbol>
+    </svg>
+
+    <!-- Splash -->
+    <main id="splash" class="splash" hidden>
+      <div class="splash-inner">
+        <svg class="mark" width="72" height="72" aria-hidden="true"><use href="#mark" /></svg>
+        <h1>Double Take</h1>
+        <p class="rule" id="splash-rule">Write one line that belongs in two worlds.</p>
+        <p class="invite-note" id="invite-note" hidden></p>
+        <div class="actions">
+          <button class="btn primary wide" id="play">Play</button>
+          <button class="quiet" id="splash-howto">How to play</button>
+          <button class="quiet" id="splash-archive">Past pairs</button>
+        </div>
+        <p class="meta"><b id="splash-no"></b><br /><span id="splash-date"></span></p>
+      </div>
+    </main>
+
+    <header class="bar" id="bar" hidden>
+      <button class="home" id="home" aria-label="Double Take home">
+        <svg class="mark" width="26" height="26" aria-hidden="true"><use href="#mark" /></svg>
+        <span>Double Take</span>
+      </button>
+      <button class="icon-btn" id="help" aria-label="How to play">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="12" cy="12" r="9.2" /><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6" stroke-linecap="round" /><circle cx="12" cy="16.9" r=".6" fill="currentColor" />
+        </svg>
+      </button>
+    </header>
+
+    <!-- Write on the seam -->
+    <main id="write" class="seam" hidden aria-labelledby="write-h">
+      <h1 class="sr-only" id="write-h"></h1>
+      <div class="world world-a"><p class="world-label" id="wa"></p></div>
+      <form class="band" id="band" novalidate>
+        <p class="hint" id="retry-hint" hidden></p>
+        <label class="sr-only" for="line">Your line, one sentence, twelve words at most</label>
+        <textarea id="line" rows="1" maxlength="160" placeholder="Write one line for both." autocomplete="off" autocapitalize="sentences" enterkeyhint="done"></textarea>
+        <p class="alert" id="write-alert" role="alert" hidden></p>
+        <p class="status" id="status" aria-live="polite"></p>
+        <button class="btn primary wide" id="submit" type="submit" disabled>Submit</button>
+      </form>
+      <div class="world world-b"><p class="world-label" id="wb"></p></div>
+    </main>
+
+    <!-- Reveal -->
+    <main id="reveal" class="reveal" hidden>
+      <div class="stage" id="stage" data-side="a" tabindex="0" role="button" aria-describedby="stage-live">
+        <div class="layer layer-a" id="layer-a"></div>
+        <div class="layer layer-b" id="layer-b"></div>
+      </div>
+      <section class="sheet" id="sheet" aria-labelledby="rank" inert>
+          <h2 id="rank"></h2>
+          <p class="why" id="why"></p>
+          <div class="sides" id="sides"></div>
+          <div class="actions" id="sheet-actions"></div>
+          <p class="count" id="count"></p>
+      </section>
+      <p class="sr-only" id="stage-live" aria-live="polite"></p>
+    </main>
+
+    <!-- Finish -->
+    <main id="finish" hidden>
+      <div class="finish">
+        <div class="finish-head">
+          <p id="finish-no"></p>
+          <h1 id="finish-rank"></h1>
+        </div>
+        <div>
+          <button class="card" id="best" data-side="a" aria-describedby="best-cap"></button>
+          <p class="caption" id="best-cap">Your best line. Tap to flip.</p>
+        </div>
+        <ul class="tries" id="tries" aria-label="Your tries"></ul>
+        <div class="row-actions">
+          <button class="btn primary" id="share">Share</button>
+          <button class="btn" id="challenge">Challenge a friend</button>
+        </div>
+        <section class="section" id="duel" hidden aria-labelledby="duel-h">
+          <h2 id="duel-h"></h2>
+          <div class="toggle" id="duel-toggle"></div>
+          <div class="duel" id="duel-cards"></div>
+          <p class="verdict-line" id="duel-verdict"></p>
+        </section>
+        <section class="section" aria-labelledby="liked-h">
+          <h2 id="liked-h">Lines we liked</h2>
+          <div class="toggle" id="liked-toggle"></div>
+          <div class="stack" id="liked"></div>
+        </section>
+        <div class="foot">
+          <span id="next-in"></span>
+          <button class="quiet" id="finish-archive">Past pairs</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Archive -->
+    <main id="archive" hidden>
+      <div class="archive">
+        <h1>Past pairs</h1>
+        <ul id="archive-list"></ul>
+      </div>
+    </main>
+
+    <dialog id="howto" aria-labelledby="howto-h">
+      <div class="howto">
+        <div class="howto-top">
+          <h2 id="howto-h">How to play</h2>
+          <button class="icon-btn" id="howto-close" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+        <p class="lede">Write one line that belongs in two worlds.</p>
+        <button class="card small" id="example" data-side="a" aria-describedby="example-cap"></button>
+        <p class="caption" id="example-cap" style="margin-top:-8px">Same words. Tap to see the other world.</p>
+        <ul>
+          <li>Each world rates your line. <b>Your weaker side is your result.</b></li>
+          <li>One sentence, twelve words at most. Two halves stitched together don't count.</li>
+          <li>Three tries. Your best one counts. A new pair every day.</li>
+        </ul>
+        <ol class="ranks" id="ranks" aria-label="Results from weakest to best"></ol>
+        <button class="btn primary" id="howto-play" autofocus>Play</button>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status"></div>
+
+    <script src="../shared/game.js"></script>
+    <script>
+      "use strict";
+      const { PAIRS, GALLERY, SIDE_WORDS, RANKS, GATE_COPY, MAX_WORDS, TRIES } = DT;
+      const TODAY_NO = 42;
+      const TODAY = new Date(2026, 8, 23);
+      const ADA_LINE = "I will love you until death takes me";
+      const $ = (id) => document.getElementById(id);
+      const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const sleep = (ms) => new Promise((r) => setTimeout(r, reduced() || S.instant ? 0 : ms));
+
+      /* Pair index 0 is today; 1..n are earlier days. */
+      const puzzle = (i) => ({ ...PAIRS[i], no: TODAY_NO - i, date: new Date(TODAY.getTime() - i * 864e5) });
+      const fmtDate = (d) => d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+      const S = {
+        screen: "splash",
+        i: 0,
+        tries: [],
+        from: null,
+        failNext: false,
+        busy: false,
+        instant: false,
+        likedSide: "a",
+        duelSide: "a",
+      };
+      const pair = () => puzzle(S.i);
+      const storeKey = () => `dt:tries:${pair().no}`;
+      function load() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(storeKey()) || "{}");
+          S.tries = saved.tries || [];
+          S.finished = !!saved.finished;
+        } catch { S.tries = []; S.finished = false; }
+      }
+      function save() {
+        try { localStorage.setItem(storeKey(), JSON.stringify({ tries: S.tries, finished: S.finished })); } catch {}
+      }
+      const best = () => S.tries.reduce((b, t) => (!b || t.rank > b.rank ? t : b), null);
+      const done = () => S.finished || S.tries.length >= TRIES || S.tries.some((t) => t.rank === 3);
+
+      /* World paint: every world surface gets --bg and --wink from content. */
+      function paint(el, world) {
+        el.style.setProperty("--bg", world.bg);
+        el.style.setProperty("--wink", world.ink);
+      }
+      function pips(n) {
+        return `<span class="pips" aria-hidden="true">${[0, 1, 2].map((k) => `<span class="pip${k < n ? " on" : ""}"></span>`).join("")}</span>`;
+      }
+      const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+      const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+      /* Gated lines never show a per-world fit: the reason is the whole story. */
+      const sideWord = (t, k) => (t.gate !== "ok" ? "Doesn't count" : SIDE_WORDS[t[k]]);
+      const sideLevel = (t, k) => (t.gate !== "ok" ? 0 : t[k]);
+      function verdictHTML(t, k) {
+        if (!t) return pips(0);
+        return `${pips(sideLevel(t, k))}<span class="word">${sideWord(t, k)}</span>`;
+      }
+      /* One layer of a world for stages and cards. t: undefined = no verdict, null = waiting. */
+      function layerHTML(world, text, t, k, shown, tap) {
+        const v = t === undefined ? "" : verdictHTML(t, k);
+        return `<p class="world-label">${esc(world.label)}</p><p class="line">${esc(text)}</p><div class="verdict${shown ? " shown" : ""}">${v}${tap ? `<p class="tap">Tap the line to flip</p>` : ""}</div>`;
+      }
+      function fillCard(card, text, levels) {
+        const p = pair();
+        card.innerHTML = `<div class="layer layer-a"></div><div class="layer layer-b"></div>`;
+        const [la, lb] = card.children;
+        paint(la, p.a); paint(lb, p.b);
+        la.innerHTML = layerHTML(p.a, text, levels || undefined, "a", true);
+        lb.innerHTML = layerHTML(p.b, text, levels || undefined, "b", true);
+        syncCard(card);
+      }
+      function syncCard(card) {
+        const side = card.dataset.side;
+        const p = pair();
+        card.children[0].setAttribute("aria-hidden", side === "b");
+        card.children[1].setAttribute("aria-hidden", side === "a");
+        card.setAttribute("aria-label", `${card.querySelector(".line").textContent}. Read as ${(side === "a" ? p.a : p.b).label}. Flip to ${(side === "a" ? p.b : p.a).label}.`);
+      }
+      function flipCard(card) {
+        card.dataset.side = card.dataset.side === "a" ? "b" : "a";
+        syncCard(card);
+      }
+
+      /* Screens */
+      function show(screen) {
+        S.screen = screen;
+        for (const id of ["splash", "write", "reveal", "finish", "archive"]) $(id).hidden = id !== screen;
+        $("bar").hidden = screen === "splash";
+        if (screen !== "reveal") setTheme("#ffffff");
+        window.scrollTo(0, 0);
+      }
+      function setTheme(color) {
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", color);
+      }
+
+      function renderSplash() {
+        const p = pair();
+        $("splash-no").textContent = `No. ${p.no}`;
+        $("splash-date").textContent = fmtDate(p.date);
+        $("invite-note").hidden = !S.from;
+        if (S.from) {
+          $("splash-rule").textContent = `${S.from} sent you a Double Take.`;
+          $("invite-note").textContent = `Play today's pair to see ${S.from}'s line.`;
+        } else {
+          $("splash-rule").textContent = "Write one line that belongs in two worlds.";
+        }
+        $("play").textContent = done() ? "See today's result" : S.tries.length ? "Continue" : "Play";
+        show("splash");
+      }
+
+      function renderWrite(opts = {}) {
+        const p = pair();
+        const seam = $("write");
+        seam.classList.remove("flooding");
+        paint(seam.querySelector(".world-a"), p.a);
+        paint(seam.querySelector(".world-b"), p.b);
+        $("wa").textContent = p.a.label;
+        $("wb").textContent = p.b.label;
+        $("write-h").textContent = `No. ${p.no}: ${p.a.label} and ${p.b.label.toLowerCase()}`;
+        const last = S.tries[S.tries.length - 1];
+        const hint = $("retry-hint");
+        hint.hidden = !last;
+        if (last) hint.textContent = `Last try: ${RANKS[last.rank]}. ${reason(last)}`;
+        const ta = $("line");
+        if (opts.text != null) ta.value = opts.text;
+        else if (!opts.keep) ta.value = last ? last.text : "";
+        $("write-alert").hidden = !opts.error;
+        if (opts.error) $("write-alert").textContent = "That line didn't go through. Your try wasn't used.";
+        show("write");
+        onType();
+        if (!S.instant) ta.focus({ preventScroll: true });
+      }
+
+      function onType() {
+        const ta = $("line");
+        ta.style.height = "auto";
+        ta.style.height = ta.scrollHeight + "px";
+        const n = DT.words(ta.value);
+        const left = MAX_WORDS - n;
+        const st = $("status");
+        st.classList.toggle("over", left < 0);
+        if (left < 0) st.textContent = `${-left} ${-left === 1 ? "word" : "words"} over`;
+        else if (left <= 3) st.textContent = `${left} ${left === 1 ? "word" : "words"} left`;
+        else st.textContent = `Try ${S.tries.length + 1} of ${TRIES}`;
+        $("submit").disabled = n === 0 || left < 0 || S.busy;
+      }
+
+      /* The one sentence of guidance after a try. */
+      function reason(t) {
+        const p = pair();
+        if (t.gate !== "ok") return GATE_COPY[t.gate];
+        if (t.rank === 3) return "Perfect in both worlds.";
+        if (t.a === t.b) return ["Neither world believes it.", "Both worlds are a stretch.", "It fits both worlds. Make both perfect."][t.a];
+        const weak = t.a < t.b ? p.a : p.b;
+        return `${cap(weak.label)} is the weak side.`;
+      }
+
+      function buildStage(text, levels, side) {
+        const p = pair();
+        const stage = $("stage");
+        paint($("layer-a"), p.a);
+        paint($("layer-b"), p.b);
+        $("layer-a").innerHTML = layerHTML(p.a, text, levels, "a", !levels, true);
+        $("layer-b").innerHTML = layerHTML(p.b, text, levels, "b", !levels, true);
+        stage.dataset.side = side;
+        $("reveal").classList.remove("sheet-open");
+        $("sheet").inert = true;
+        stage.classList.toggle("waiting", !levels);
+        stage.classList.remove("interactive");
+        syncStage();
+      }
+      function syncStage() {
+        const p = pair();
+        const stage = $("stage");
+        const side = stage.dataset.side;
+        $("layer-a").setAttribute("aria-hidden", side === "b");
+        $("layer-b").setAttribute("aria-hidden", side === "a");
+        const w = side === "a" ? p.a : p.b;
+        const other = side === "a" ? p.b : p.a;
+        stage.setAttribute("aria-label", `Flip to ${other.label}`);
+        setTheme(w.bg);
+        stage.style.setProperty("--ring", w.ink);
+      }
+      function showVerdict(side) {
+        $(`layer-${side}`).querySelector(".verdict").classList.add("shown");
+        const t = S.current;
+        if (t) $("stage-live").textContent = `${side === "a" ? pair().a.label : pair().b.label}: ${sideWord(t, side)}.`;
+      }
+      function flipStage() {
+        const stage = $("stage");
+        if (!stage.classList.contains("interactive")) return;
+        stage.dataset.side = stage.dataset.side === "a" ? "b" : "a";
+        syncStage();
+        showVerdict(stage.dataset.side);
+      }
+
+      function renderSheet(t) {
+        const p = pair();
+        $("rank").textContent = RANKS[t.rank];
+        $("why").textContent = reason(t);
+        $("sides").innerHTML = t.gate !== "ok" ? "" : [["a", p.a], ["b", p.b]]
+          .map(([k, w]) => `<div class="side-row"><span class="swatch" style="--bg:${w.bg}"></span><span>${esc(w.label)}</span>${pips(t[k])}<b>${SIDE_WORDS[t[k]]}</b></div>`)
+          .join("");
+        const left = TRIES - S.tries.length;
+        const acts = $("sheet-actions");
+        acts.innerHTML = "";
+        const finishBtn = el("button", { class: "btn", text: "Finish" }, () => { S.finished = true; save(); renderFinish(); });
+        if (left > 0 && t.rank < 3) {
+          acts.append(el("button", { class: "btn primary", text: "Try again" }, () => renderWrite()), finishBtn);
+          $("count").textContent = `${left} ${left === 1 ? "try" : "tries"} left`;
+        } else {
+          finishBtn.classList.add("primary", "wide");
+          acts.append(finishBtn);
+          $("count").textContent = t.rank === 3 ? "" : "That was your last try.";
+        }
+        $("reveal").classList.add("sheet-open");
+        $("sheet").inert = false;
+        $("stage").classList.add("interactive");
+      }
+      function el(tag, { class: c, text }, onClick) {
+        const n = document.createElement(tag);
+        if (c) n.className = c;
+        n.textContent = text;
+        n.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
+        return n;
+      }
+
+      /* Submit: flood into world A, read it, sweep world B up across the still line. */
+      async function submit(e) {
+        e && e.preventDefault();
+        const text = $("line").value.replace(/\s+/g, " ").trim();
+        const n = DT.words(text);
+        if (!n || n > MAX_WORDS || S.busy) return;
+        S.busy = true;
+        S.current = null;
+        $("line").blur();
+        $("write").classList.add("flooding");
+        await sleep(460);
+        buildStage(text, null, "a");
+        $("stage").classList.remove("interactive");
+        show("reveal");
+        setTheme(pair().a.bg);
+        let result;
+        try {
+          result = await DT.judge(pair(), text, { fail: S.failNext, delay: S.instant ? 0 : undefined });
+        } catch {
+          S.failNext = false;
+          S.busy = false;
+          renderWrite({ text, error: true });
+          return;
+        }
+        const t = { text, a: result.a, b: result.b, gate: result.gate, rank: result.rank };
+        S.tries.push(t);
+        S.current = t;
+        save();
+        $("stage").classList.remove("waiting");
+        document.querySelectorAll("#stage .verdict").forEach((v) => v.classList.remove("shown"));
+        $("layer-a").querySelector(".verdict").innerHTML = verdictHTML(t, "a") + `<p class="tap">Tap the line to flip</p>`;
+        $("layer-b").querySelector(".verdict").innerHTML = verdictHTML(t, "b") + `<p class="tap">Tap the line to flip</p>`;
+        showVerdict("a");
+        await sleep(1300);
+        $("stage").dataset.side = "b";
+        syncStage();
+        await sleep(760);
+        showVerdict("b");
+        if (t.rank === 3 && !reduced() && !S.instant) {
+          // The double take: look back, then look again.
+          await sleep(650);
+          $("stage").dataset.side = "a"; syncStage();
+          await sleep(380);
+          $("stage").dataset.side = "b"; syncStage();
+          await sleep(420);
+        } else await sleep(650);
+        renderSheet(t);
+        S.busy = false;
+      }
+
+      function renderFinish() {
+        const p = pair();
+        const b = best();
+        $("finish-no").textContent = `No. ${p.no}. ${p.a.label} and ${p.b.label.toLowerCase()}.`;
+        $("finish-rank").textContent = RANKS[b.rank];
+        const card = $("best");
+        card.dataset.side = "a";
+        fillCard(card, b.text, b);
+        $("tries").innerHTML = S.tries
+          .map((t) => {
+            const g = t.gate === "stitched"
+              ? `<span class="cut">Stitched</span>`
+              : t.gate === "generic"
+              ? `<span class="cut">Too safe</span>`
+              : `<span class="grid"><span class="swatch" style="--bg:${p.a.bg}"></span>${pips(t.a)}<span class="swatch" style="--bg:${p.b.bg}"></span>${pips(t.b)}</span>`;
+            return `<li>${g}<span class="txt">${esc(t.text)}</span></li>`;
+          })
+          .join("");
+        renderDuel();
+        renderLiked();
+        const now = new Date();
+        const mid = new Date(now); mid.setHours(24, 0, 0, 0);
+        const mins = Math.max(1, Math.round((mid - now) / 6e4));
+        $("next-in").textContent = S.i === 0 ? `Next pair in ${Math.floor(mins / 60)}h ${mins % 60}m` : `Practice pair from ${fmtDate(p.date)}`;
+        show("finish");
+      }
+
+      function toggleHTML(container, current, onPick) {
+        const p = pair();
+        container.innerHTML = `<div role="radiogroup" aria-label="Read every line as">${[["a", p.a], ["b", p.b]]
+          .map(([k, w]) => `<button role="radio" data-k="${k}" aria-checked="${k === current}">${esc(w.label)}</button>`)
+          .join("")}</div>`;
+        container.querySelectorAll("button").forEach((btn) => btn.addEventListener("click", () => onPick(btn.dataset.k)));
+      }
+      function renderLiked() {
+        const lines = GALLERY[pair().key] || [];
+        $("liked").parentElement.hidden = lines.length === 0;
+        toggleHTML($("liked-toggle"), S.likedSide, (k) => { S.likedSide = k; renderLiked(); });
+        $("liked").innerHTML = "";
+        for (const g of lines) {
+          const wrap = document.createElement("div");
+          const card = document.createElement("button");
+          card.className = "card small";
+          card.dataset.side = S.likedSide;
+          fillCard(card, g.text, null);
+          card.addEventListener("click", () => flipCard(card));
+          wrap.append(card);
+          const by = document.createElement("p");
+          by.className = "byline";
+          by.textContent = g.name;
+          wrap.append(by);
+          $("liked").append(wrap);
+        }
+      }
+      function renderDuel() {
+        $("duel").hidden = !S.from;
+        if (!S.from) return;
+        const mine = best();
+        const theirs = { text: ADA_LINE, ...DT.fixture(pair(), ADA_LINE) };
+        $("duel-h").textContent = `You and ${S.from}`;
+        toggleHTML($("duel-toggle"), S.duelSide, (k) => { S.duelSide = k; renderDuel(); });
+        const cards = $("duel-cards");
+        cards.innerHTML = "";
+        for (const [who, t] of [["You", mine], [S.from, theirs]]) {
+          const wrap = document.createElement("div");
+          const card = document.createElement("div");
+          card.className = "card";
+          card.style.cursor = "default";
+          card.dataset.side = S.duelSide;
+          fillCard(card, t.text, t);
+          wrap.append(card);
+          const by = document.createElement("p");
+          by.className = "byline";
+          by.innerHTML = `<b>${esc(who)}</b> ${RANKS[t.rank]}`;
+          wrap.append(by);
+          cards.append(wrap);
+        }
+        $("duel-verdict").textContent = mine.rank > theirs.rank ? "You win." : mine.rank < theirs.rank ? `${S.from} wins.` : "Dead even.";
+      }
+
+      function renderArchive() {
+        const list = $("archive-list");
+        list.innerHTML = "";
+        PAIRS.forEach((_, i) => {
+          const p = puzzle(i);
+          let tries = [];
+          try { tries = JSON.parse(localStorage.getItem(`dt:tries:${p.no}`) || "{}").tries || []; } catch {}
+          const b = tries.reduce((m, t) => Math.max(m, t.rank), -1);
+          const li = document.createElement("li");
+          li.innerHTML = `<button><span class="dots" aria-hidden="true"><span style="background:${p.a.bg}"></span><span style="background:${p.b.bg}"></span></span><span class="t"><b>${esc(p.a.label)} and ${esc(p.b.label.toLowerCase())}</b><small>No. ${p.no}${i === 0 ? ", today" : ""}</small></span><span class="r">${b >= 0 ? RANKS[b] : "Play"}</span></button>`;
+          li.firstChild.addEventListener("click", () => { S.i = i; load(); S.from = null; done() && S.tries.length ? renderFinish() : renderWrite(); });
+          list.append(li);
+        });
+        show("archive");
+      }
+
+      /* How to play */
+      let exampleTimer = null;
+      function openHowto() {
+        const p = puzzle(0);
+        const card = $("example");
+        const saved = S.i; S.i = 0;
+        card.dataset.side = "a";
+        fillCard(card, p.examples[1].text, null);
+        S.i = saved;
+        $("ranks").innerHTML = RANKS.map((r, k) => `<li>${pips(k)}${r}</li>`).join("");
+        $("howto").showModal();
+        clearInterval(exampleTimer);
+        if (!reduced() && !S.instant) exampleTimer = setInterval(() => flipCard(card), 2200);
+        try { localStorage.setItem("dt:seen-howto", "1"); } catch {}
+      }
+      $("howto").addEventListener("close", () => clearInterval(exampleTimer));
+      $("example").addEventListener("click", () => { clearInterval(exampleTimer); flipCard($("example")); });
+      $("howto-close").addEventListener("click", () => $("howto").close());
+      $("howto-play").addEventListener("click", () => { $("howto").close(); start(); });
+
+      function toast(msg) {
+        const t = $("toast");
+        t.textContent = msg;
+        t.classList.add("show");
+        clearTimeout(toast.timer);
+        toast.timer = setTimeout(() => t.classList.remove("show"), 2600);
+      }
+      async function copy(text) {
+        try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+      }
+
+      function start() {
+        if (done() && S.tries.length) return renderFinish();
+        let seen = false;
+        try { seen = !!localStorage.getItem("dt:seen-howto"); } catch {}
+        renderWrite({ keep: false });
+        if (!seen) openHowto();
+      }
+
+      /* Wiring */
+      $("play").addEventListener("click", start);
+      $("splash-howto").addEventListener("click", openHowto);
+      $("splash-archive").addEventListener("click", renderArchive);
+      $("finish-archive").addEventListener("click", renderArchive);
+      $("help").addEventListener("click", openHowto);
+      $("home").addEventListener("click", () => { S.i = 0; load(); renderSplash(); });
+      $("line").addEventListener("input", onType);
+      $("line").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+      $("band").addEventListener("submit", submit);
+      $("stage").addEventListener("click", flipStage);
+      $("stage").addEventListener("keydown", (e) => {
+        if ((e.key === " " || e.key === "Enter") && e.target === $("stage")) { e.preventDefault(); flipStage(); }
+      });
+      $("best").addEventListener("click", () => flipCard($("best")));
+      $("share").addEventListener("click", async () => {
+        const text = DT.shareText(pair(), S.tries);
+        toast((await copy(text)) ? "Copied. Paste it in your group chat." : "Couldn't copy. Try again.");
+      });
+      $("challenge").addEventListener("click", async () => {
+        const ok = await copy(`https://doubletake.example/c/${pair().no}-7Q2K`);
+        toast(ok ? "Link copied. Your line stays hidden until they finish." : "Couldn't copy. Try again.");
+      });
+
+      /* QA states: seed and render instantly. */
+      const SAMPLE = {
+        lands: { text: "I will never let you go", a: 2, b: 3, gate: "ok", rank: 2 },
+        close: { text: "Nothing can stop what happens between us tonight", a: 1, b: 1, gate: "ok", rank: 1 },
+        stitched: { text: "I promise to stay, and you will regret this", a: 2, b: 2, gate: "stitched", rank: 0 },
+        generic: { text: "We need to talk", a: 0, b: 0, gate: "generic", rank: 0 },
+        take: { text: "You are mine, now and forever", a: 3, b: 3, gate: "ok", rank: 3 },
+        weakA: { text: "You will never escape me now", a: 1, b: 3, gate: "ok", rank: 1 },
+      };
+      function seedResult(tries) {
+        S.tries = tries.map((t) => ({ ...t }));
+        const t = S.tries[S.tries.length - 1];
+        S.current = t;
+        buildStage(t.text, t, "b");
+        show("reveal");
+        showVerdict("a"); showVerdict("b");
+        $("stage").classList.remove("waiting");
+        renderSheet(t);
+      }
+      function applyHash() {
+        const h = new URLSearchParams(location.hash.slice(1));
+        if (h.has("reset")) { try { localStorage.clear(); } catch {} }
+        S.failNext = h.get("fail") === "1";
+        S.from = h.get("from");
+        const state = h.get("state");
+        S.i = 0;
+        load();
+        if (!state) {
+          S.instant = false;
+          return renderSplash();
+        }
+        S.instant = true;
+        S.finished = false;
+        document.documentElement.style.setProperty("--wipe", "1ms");
+        const T = SAMPLE;
+        const states = {
+          splash: () => { S.tries = []; renderSplash(); },
+          invite: () => { S.tries = []; S.from = S.from || "Ada"; renderSplash(); },
+          howto: () => { S.tries = []; renderSplash(); openHowto(); },
+          write: () => { S.tries = []; renderWrite({ text: "" }); },
+          "write-typing": () => { S.tries = []; renderWrite({ text: "I will stand beside you until the very" }); },
+          "write-over": () => { S.tries = []; renderWrite({ text: "I will stand beside you until the very last light in this world goes out" }); },
+          "write-retry": () => { S.tries = [T.weakA]; renderWrite(); },
+          "write-error": () => { S.tries = []; renderWrite({ text: "You were always going to end up here", error: true }); },
+          judging: () => { S.tries = []; buildStage("You were always going to end up here", null, "a"); show("reveal"); },
+          "reveal-a": () => { S.tries = [T.lands]; S.current = T.lands; buildStage(T.lands.text, T.lands, "a"); show("reveal"); $("stage").classList.remove("waiting"); showVerdict("a"); },
+          "reveal-b": () => { S.tries = [T.lands]; S.current = T.lands; buildStage(T.lands.text, T.lands, "b"); show("reveal"); $("stage").classList.remove("waiting"); showVerdict("a"); showVerdict("b"); },
+          "result-lands": () => seedResult([T.lands]),
+          "result-close": () => seedResult([T.weakA]),
+          "result-double-take": () => seedResult([T.weakA, T.take]),
+          "result-stitched": () => seedResult([T.stitched]),
+          "result-generic": () => seedResult([T.generic]),
+          "result-last": () => seedResult([T.weakA, T.stitched, T.close]),
+          finish: () => { S.tries = [T.weakA, T.stitched, T.lands]; renderFinish(); },
+          "finish-toast": () => { S.tries = [T.weakA, T.stitched, T.lands]; renderFinish(); toast("Copied. Paste it in your group chat."); },
+          "finish-duel": () => { S.from = S.from || "Ada"; S.tries = [T.weakA, T.take]; renderFinish(); },
+          archive: () => renderArchive(),
+        };
+        (states[state] || states.splash)();
+      }
+      window.addEventListener("hashchange", applyHash);
+      applyHash();
+    </script>
+  </body>
+</html>

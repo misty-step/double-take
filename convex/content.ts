@@ -1,269 +1,308 @@
 /**
- * Curated context pairs and calibration examples.
+ * The color palette, hand-authored context pairs, and calibration examples.
  *
- * Authoring lives here, versioned in git. The judge never generates prose;
- * it only rates the player's sentence against these authored contexts.
+ * Generated pairs live in generatedPairs.ts; convex/deck.ts composes the live
+ * deck. The in-game judge never generates prose; it only rates the player's
+ * sentence against these contexts.
  */
 
 import type { Pair } from "./rubrics";
 
-export const PAIRS: Pair[] = [
+/*
+ * Colors: each world is a surface (`bg`) and its text (`ink`), drawn from
+ * PALETTE so every world keeps text contrast at 7:1 or better
+ * (tests/content.test.ts). Generated pairs name a surface; they never carry
+ * raw colors.
+ */
+export const PALETTE = {
+  blush: { bg: "#F8DCE1", ink: "#000000" },
+  rose: { bg: "#FFD6E0", ink: "#000000" },
+  peach: { bg: "#FFE3CC", ink: "#000000" },
+  apricot: { bg: "#FFE0B3", ink: "#000000" },
+  butter: { bg: "#FFE9A8", ink: "#000000" },
+  cream: { bg: "#FFF0B8", ink: "#000000" },
+  lime: { bg: "#E9F3D9", ink: "#000000" },
+  mint: { bg: "#DDF1E4", ink: "#000000" },
+  sea: { bg: "#D6ECF0", ink: "#000000" },
+  sky: { bg: "#E3EDFF", ink: "#000000" },
+  periwinkle: { bg: "#DDE4FF", ink: "#000000" },
+  lilac: { bg: "#E7E1F5", ink: "#000000" },
+  fog: { bg: "#E4E7EB", ink: "#000000" },
+  paper: { bg: "#E6E6E6", ink: "#000000" },
+  navy: { bg: "#16203A", ink: "#FFFFFF" },
+  space: { bg: "#0B1026", ink: "#FFFFFF" },
+  forest: { bg: "#0E2A22", ink: "#E9FFF4" },
+  plum: { bg: "#1D1233", ink: "#F4EDFF" },
+  graphite: { bg: "#262A33", ink: "#FFFFFF" },
+  ink: { bg: "#1A1A1F", ink: "#FFFFFF" },
+  oxblood: { bg: "#3A1016", ink: "#FFF1F1" },
+  moss: { bg: "#23301A", ink: "#F3FBE8" },
+} as const satisfies Record<string, { bg: string; ink: string }>;
+export type Surface = keyof typeof PALETTE;
+export const SURFACES = Object.keys(PALETTE) as Surface[];
+
+/** Hand-authored pairs; they also anchor the calibration deck below. */
+export const AUTHORED_PAIRS: Pair[] = [
   {
     key: "vow-villain",
-    title: "Vow or threat",
     contextA: {
       label: "Wedding vow",
       setting:
         "Said aloud at the altar, holding your partner's hands, after ten years together.",
+      name: "A wedding vow",
+      bg: "#F8DCE1",
+      ink: "#000000",
     },
     contextB: {
       label: "Villain monologue",
       setting:
         "Said to the hero you have finally cornered, cape settling, plan complete.",
+      name: "A villain's gloat",
+      bg: "#16203A",
+      ink: "#FFFFFF",
     },
     note: "The canonical calibration pair.",
   },
   {
     key: "bedtime-briefing",
-    title: "Goodnight, over",
     contextA: {
       label: "Parent at bedtime",
       setting:
         "Whispered at the edge of a child's bed, lights low, third glass of water requested.",
+      name: "Bedtime",
+      bg: "#DDE4FF",
+      ink: "#000000",
     },
     contextB: {
       label: "Flight controller",
       setting:
         "Spoken calmly over the radio to a pilot on final approach in bad weather.",
+      name: "Air traffic control",
+      bg: "#0E2A22",
+      ink: "#E9FFF4",
     },
   },
   {
     key: "vet-boss",
-    title: "Hard news",
     contextA: {
       label: "Veterinarian to a nervous dog",
       setting:
         "Low, calm voice in an exam room; the dog is shaking on the steel table.",
+      name: "Calming a scared dog",
+      bg: "#DDF1E4",
+      ink: "#000000",
     },
     contextB: {
       label: "Manager in a review meeting",
       setting:
         "Serious voice across a conference table; the quarter did not go well.",
+      name: "A bad performance review",
+      bg: "#262A33",
+      ink: "#FFFFFF",
     },
   },
   {
     key: "letter-fineprint",
-    title: "Yours sincerely",
     contextA: {
       label: "Love letter",
       setting: "Written by hand, sent by mail, kept in a drawer for years.",
+      name: "A love letter",
+      bg: "#FFE3CC",
+      ink: "#000000",
     },
     contextB: {
       label: "Contract fine print",
       setting:
         "Grey text at the bottom of a long agreement, next to the signature line.",
+      name: "The fine print",
+      bg: "#E6E6E6",
+      ink: "#000000",
     },
   },
   {
     key: "coach-grief",
-    title: "Locker room, quiet room",
     contextA: {
       label: "Coach before the final",
       setting:
         "Locker room at halftime, chalk dust in the air, a season on the line.",
+      name: "A halftime speech",
+      bg: "#FFE0B3",
+      ink: "#000000",
     },
     contextB: {
       label: "Grief counselor",
       setting:
         "Quiet office, box of tissues on the side table, a long silence just ended.",
+      name: "A grief counselor",
+      bg: "#E7E1F5",
+      ink: "#000000",
     },
   },
   {
     key: "orbit-hold",
-    title: "Signal",
     contextA: {
       label: "Last transmission from orbit",
       setting: "Static-edged voice from a failing capsule, oxygen running out.",
+      name: "Last words from orbit",
+      bg: "#0B1026",
+      ink: "#FFFFFF",
     },
     contextB: {
       label: "Support line hold message",
       setting: "Cheerful recorded voice, looping, apologizing for the wait.",
+      name: "Hold music",
+      bg: "#E9F3D9",
+      ink: "#000000",
     },
   },
   {
     key: "menu-spell",
-    title: "What we serve",
     contextA: {
       label: "Chef's specials board",
       setting: "Chalk on slate by the kitchen door, market haul this morning.",
+      name: "Tonight's specials",
+      bg: "#FFE9A8",
+      ink: "#000000",
     },
     contextB: {
       label: "Spoken incantation",
       setting:
         "Old words by candlelight, a circle of salt, something about to arrive.",
+      name: "A summoning spell",
+      bg: "#1D1233",
+      ink: "#F4EDFF",
     },
   },
   {
     key: "valentine-ticket",
-    title: "Left where you'll find it",
     contextA: {
       label: "Valentine's card",
       setting: "Red ink, pressed flowers, hidden under a pillow.",
+      name: "A valentine",
+      bg: "#FFD6E0",
+      ink: "#000000",
     },
     contextB: {
       label: "Note under a windshield wiper",
       setting:
         "Rushed handwriting on a napkin, left after a parking-lot scrape.",
+      name: "A windshield apology",
+      bg: "#E4E7EB",
+      ink: "#000000",
     },
   },
   {
     key: "cookie-tos",
-    title: "A promise on paper",
     contextA: {
       label: "Fortune cookie slip",
       setting: "Folded in a cracker shell at the end of a long dinner.",
+      name: "A fortune cookie",
+      bg: "#FFF0B8",
+      ink: "#000000",
     },
     contextB: {
       label: "Terms of service summary",
       setting: "The one sentence above the Accept button nobody reads.",
+      name: "Terms of service",
+      bg: "#E3EDFF",
+      ink: "#000000",
     },
   },
   {
     key: "lighthouse-voicemail",
-    title: "Still here",
     contextA: {
       label: "Lighthouse keeper's log",
       setting:
         "Ink on a weather-stained page, storm season, nobody else for miles.",
+      name: "A lighthouse log",
+      bg: "#D6ECF0",
+      ink: "#000000",
     },
     contextB: {
       label: "Late-night voicemail to an old friend",
       setting:
         "Talking to an answering machine because calling felt better than sleeping.",
+      name: "A 3 a.m. voicemail",
+      bg: "#1A1A1F",
+      ink: "#FFFFFF",
     },
   },
 ];
 
-export function pairByKey(key: string): Pair | undefined {
-  return PAIRS.find((pair) => pair.key === key);
-}
-
+/** Authored intent: appropriateness per world (0 to 3) and the coherence level. */
 export type CalibrationExample = {
   pairKey: string;
   sentence: string;
-  expected: {
-    plausibilityA: number;
-    plausibilityB: number;
-    coherence: number;
-    specificity: number;
-  };
+  expected: { a: number; b: number; coherence: number };
   note: string;
 };
 
 /**
  * Curated calibration examples. Each expected level is the authored intent for
- * the rubric; `scripts/judge-probe.mjs` can compare a live judge against these
- * when a server key is available, and tests pin the deck's shape offline.
- * Reconciliation decisions and probe evidence: docs/calibration.md.
+ * rubric@4 (would it be appropriate to say this here); `scripts/judge-probe.mjs`
+ * compares a live judge against these when a server key is available, and
+ * tests pin the deck's shape offline. Decisions and probe evidence:
+ * docs/calibration.md.
  */
 export const CALIBRATION: CalibrationExample[] = [
   {
     pairKey: "vow-villain",
+    sentence: "You are mine, now and forever",
+    expected: { a: 3, b: 3, coherence: 3 },
+    note: "The target double take: devotion at the altar, possession from the villain, same words. Appropriate in both.",
+  },
+  {
+    pairKey: "vow-villain",
     sentence: "I will love you until death takes me",
-    expected: {
-      plausibilityA: 3,
-      plausibilityB: 2,
-      coherence: 3,
-      specificity: 2,
-    },
-    note: "Classic double reading; both framings hold without changing a word. The villain borrows the vow's idiom — natural there, not native. Live judge read B Impossible under rubric@1, Strained under rubric@2; recorded divergence, docs/calibration.md.",
+    expected: { a: 3, b: 0, coherence: 3 },
+    note: "Exactly right as a vow; a declaration of love to the hero you just cornered makes no sense. One world rejects it.",
   },
   {
     pairKey: "vow-villain",
     sentence: "You will never escape me now",
-    expected: {
-      plausibilityA: 1,
-      plausibilityB: 3,
-      coherence: 2,
-      specificity: 2,
-    },
-    note: "A threat at home in the monologue; as a vow it is a possessive promise — strained, not impossible. Calibrates the one-point floor. Live judge agrees (A1, stable across rubric versions).",
+    expected: { a: 1, b: 3, coherence: 3 },
+    note: "Exactly right in the gloat; as a vow it is an awkward, possessive thing to say.",
   },
   {
     pairKey: "vow-villain",
     sentence: "I promise to stay, and you will regret this",
-    expected: {
-      plausibilityA: 2,
-      plausibilityB: 2,
-      coherence: 0,
-      specificity: 2,
-    },
-    note: "Two stitched halves; the comma cannot hide two different speakers. Expected levels express that each half works somewhere; judged whole-in-context the halves collapse (live A1/B2 under rubric@2) and the stitched gate dominates either way.",
+    expected: { a: 1, b: 2, coherence: 0 },
+    note: "Two stitched halves; the comma cannot hide two different speakers. The stitching check must zero it.",
   },
   {
     pairKey: "vet-boss",
     sentence: "This will only hurt for a moment",
-    expected: {
-      plausibilityA: 3,
-      plausibilityB: 2,
-      coherence: 3,
-      specificity: 2,
-    },
-    note: "Kind to a dog, cold from a manager; earns the weaker reading. The bedside register stumbles in a conference room, yet managers do say exactly this — the semantics straddle Strained and Natural, and so does the live judge (rubric@2: B1 thrice, B2 once). Deck keeps Natural as authored intent.",
+    expected: { a: 3, b: 1, coherence: 3 },
+    note: "Exactly right to a scared dog; from a manager in a review it is a cold, awkward thing to say.",
   },
   {
     pairKey: "vet-boss",
     sentence: "We need to talk",
-    expected: {
-      plausibilityA: 2,
-      plausibilityB: 3,
-      coherence: 3,
-      specificity: 0,
-    },
-    note: "Fits everything; the specificity gate must zero it. The boss side is the stock idiom of the bad-news meeting; the dog side stumbles (talking to a creature that cannot talk). Live: A1/B3 across rubrics, gate unchanged.",
+    expected: { a: 1, b: 3, coherence: 3 },
+    note: "The stock opener of a bad review, so exactly right there; odd to say to a dog. Common phrasing is not penalized.",
   },
   {
-    pairKey: "orbit-hold",
-    sentence: "Please hold, your call matters to us",
-    expected: {
-      plausibilityA: 0,
-      plausibilityB: 3,
-      coherence: 3,
-      specificity: 1,
-    },
-    note: "A perfect hold message that nobody would transmit from a dying capsule. One sentence, not stitching — both halves serve the hold context. The live judge still calls it stitched under rubric@2 (residual comma bias); the outcome is zero either way.",
+    pairKey: "coach-grief",
+    sentence: "that'll just about do it",
+    expected: { a: 2, b: 1, coherence: 3 },
+    note: "Operator playtest 2026-09-23. A fine thing for a coach to say to wrap up; dismissive with a grieving person.",
+  },
+  {
+    pairKey: "coach-grief",
+    sentence: "Nobody gets through this part alone",
+    expected: { a: 3, b: 3, coherence: 3 },
+    note: "Rallies the team at halftime and comforts in the counselor's office. The shape of a winning line.",
   },
   {
     pairKey: "menu-spell",
     sentence: "Tonight we feast on what remains",
-    expected: {
-      plausibilityA: 2,
-      plausibilityB: 2,
-      coherence: 3,
-      specificity: 2,
-    },
-    note: "Works as a harvest menu and as an incantation — poetic in both registers, native to neither. Natural on both sides; the live judge agrees (A2/B2, stable across rubrics and the release-day probe).",
+    expected: { a: 2, b: 2, coherence: 3 },
+    note: "Fits the specials board and the circle of salt; native to neither.",
   },
   {
     pairKey: "letter-fineprint",
     sentence: "You agree to everything the moment you open this",
-    expected: {
-      plausibilityA: 1,
-      plausibilityB: 3,
-      coherence: 2,
-      specificity: 2,
-    },
-    note: "Fine print at home: opening seals the agreement. A love letter strains it into a presumptuous ultimatum — one point survives. Replaces the unplayable 13-word original (over the twelve-word cap); live rubric@2 reads A1/B3, 4/4 repeats.",
+    expected: { a: 1, b: 3, coherence: 3 },
+    note: "Exactly right as fine print; an awkward, presumptuous thing to put in a love letter.",
   },
 ];
-
-export const INSTRUCTIONS = {
-  premise: "One sentence. Two contexts. The weaker reading wins.",
-  steps: [
-    "You get two contexts: the same line has to work in both.",
-    "Write one coherent sentence of twelve words or less.",
-    "The judge scores each reading separately, then checks coherence and specificity.",
-    "Stitched clauses and generic filler score nothing, however balanced they look.",
-    "Points come from the weaker reading: the floor, not the ceiling.",
-  ],
-} as const;

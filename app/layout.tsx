@@ -1,12 +1,29 @@
 import type { Metadata, Viewport } from "next";
+import { Libre_Franklin, Newsreader } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { Providers } from "./providers";
 
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  weight: ["400", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-newsreader",
+  display: "swap",
+});
+const libreFranklin = Libre_Franklin({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  variable: "--font-libre-franklin",
+  display: "swap",
+});
+const description =
+  "Everyone gets the same two worlds. Write the line that fits both best.";
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://doubletake.mistystep.io"),
-  title: "Double Take — one line, two impressions",
-  description: "Write one line that reads true in two different scenes.",
+  title: "Double Take",
+  description,
   applicationName: "Double Take",
   icons: {
     icon: [
@@ -29,7 +46,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Double Take",
-    description: "One line. Two impressions. Make both read true.",
+    description,
     type: "website",
     url: "https://doubletake.mistystep.io",
     siteName: "Double Take",
@@ -38,7 +55,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Double Take",
-    description: "One line. Two impressions. Make both read true.",
+    description,
     images: ["/brand/double-take-share.svg"],
   },
 };
@@ -46,13 +63,17 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#1b1626",
-  colorScheme: "dark",
+  interactiveWidget: "resizes-content",
+  themeColor: "#ffffff",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={`${newsreader.variable} ${libreFranklin.variable}`}
+    >
       <body>
         <Providers>{children}</Providers>
       </body>

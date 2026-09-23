@@ -10,7 +10,9 @@
 
 import type * as content from "../content.js";
 import type * as crons from "../crons.js";
+import type * as deck from "../deck.js";
 import type * as game from "../game.js";
+import type * as generatedPairs from "../generatedPairs.js";
 import type * as http from "../http.js";
 import type * as judge from "../judge.js";
 import type * as limits from "../limits.js";
@@ -20,7 +22,6 @@ import type * as rooms from "../rooms.js";
 import type * as rubrics from "../rubrics.js";
 import type * as rules from "../rules.js";
 import type * as seed from "../seed.js";
-import type * as solo from "../solo.js";
 
 import type {
   ApiFromModules,
@@ -31,7 +32,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   content: typeof content;
   crons: typeof crons;
+  deck: typeof deck;
   game: typeof game;
+  generatedPairs: typeof generatedPairs;
   http: typeof http;
   judge: typeof judge;
   limits: typeof limits;
@@ -41,7 +44,6 @@ declare const fullApi: ApiFromModules<{
   rubrics: typeof rubrics;
   rules: typeof rules;
   seed: typeof seed;
-  solo: typeof solo;
 }>;
 
 /**

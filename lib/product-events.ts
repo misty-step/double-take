@@ -17,7 +17,6 @@ type Judgment = {
   props: {
     roundIndex: number;
     coherence: "pass" | "fail";
-    specificity: "pass" | "fail";
     refused: boolean;
     refuseReason?: string;
   };
@@ -170,20 +169,12 @@ function validateProps(
       exactKeys(
         props,
         hasReason
-          ? [
-              "roundIndex",
-              "coherence",
-              "specificity",
-              "refused",
-              "refuseReason",
-            ]
-          : ["roundIndex", "coherence", "specificity", "refused"],
+          ? ["roundIndex", "coherence", "refused", "refuseReason"]
+          : ["roundIndex", "coherence", "refused"],
       );
       positiveInteger(props.roundIndex, "roundIndex");
       if (props.coherence !== "pass" && props.coherence !== "fail")
         fail("coherence must be pass or fail");
-      if (props.specificity !== "pass" && props.specificity !== "fail")
-        fail("specificity must be pass or fail");
       if (typeof props.refused !== "boolean") fail("refused must be boolean");
       if (props.refused && !hasReason)
         fail("refuseReason is required when refused is true");

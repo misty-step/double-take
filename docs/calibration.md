@@ -1,10 +1,87 @@
-# Calibration deck reconciliation — 2026-09-20
+# Calibration deck
+
+## rubric@4 — 2026-09-23 (current)
+
+**Why.** The operator set the question directly: ask Jev whether the line
+would be appropriate in each circumstance, and nothing about genericness or
+novelty. rubric@4 asks exactly that for each world ("Would it be appropriate
+to say `sentence` in `context_a`? Consider who is speaking, who is listening,
+and what is happening.") on four levels: Inappropriate, Awkward, Appropriate,
+Exactly right. Its guidance tells Jev not to penalize common, short, simple,
+playful, or figurative lines. The stitching question and the rule that either
+world rejecting a line zeroes it are unchanged; ratings still round Jev's
+weighted score.
+
+**Evidence** (live `typesafe/jev-1.13`, 3 runs each; weighted A/B → points):
+
+| Line                                 | Pair             | Result                        |
+| ------------------------------------ | ---------------- | ----------------------------- |
+| that'll just about do it             | halftime / grief | 1.9/1.0 → 2+1 = 3             |
+| today is yesterday's tomorrow        | halftime / grief | 1.1/1.1 → 1+1 = 2             |
+| Nobody gets through this part alone  | halftime / grief | 2.5/2.8 → 5 (6 once)          |
+| We need to talk                      | vet / review     | 0.9/2.5 → 3 or 4              |
+| This will only hurt for a moment     | vet / review     | 2.6/0.8 → 4                   |
+| I will love you until death takes me | vow / villain    | 2.6/0.2 → 0 (villain rejects) |
+| You are mine, now and forever        | vow / villain    | 2.2/1.3 → 3                   |
+
+**Known limits.** The stitching question still flags some one-speaker lines
+with a comma as stitched ("Let it all out, then we go again"; "Please hold,
+your call matters to us"). Scores near a half level (2.49 vs 2.53) can round
+either way between runs; a retained judgment is reused for the same line, so
+one game never re-rolls it.
+
+## rubric@3 — 2026-09-23 (superseded)
+
+**Why.** In the operator's first two-player playtest (halftime speech and grief
+counselor), "that'll just about do it" won with 4 points and "today is
+yesterday's tomorrow" scored 0. rubric@2 produced both results for the same
+reason, and both are wrong for this game:
+
+- rubric@2 asked whether a line was **plausible** in each world. A stock
+  wrap-up is plausible everywhere, so "that'll just about do it" rated
+  Idiomatic at halftime (56% probability).
+- A separate **specificity** question zeroed any line it judged generic. It
+  judged "today is yesterday's tomorrow" generic by 51% to 40%, so a
+  coin-flip answer erased the line.
+- Ratings took the single likeliest level. An even 45%/45% split between two
+  levels fell to the lower one on a tie.
+
+**What changed.** One question per world: does the line _land_ there? Filler
+is its own level ("Could be said here, but it is filler"), so stock phrases
+score low in both worlds instead of scoring high or vanishing. The
+specificity question and its zero rule are gone. Each world's rating is Jev's
+probability-weighted score rounded to the nearest level. Stitched lines and
+lines one world rejects still score nothing. rubric@2 judgments are never
+scored under rubric@3.
+
+**Evidence** (live `typesafe/jev-1.13`, served `-20260917`; `pnpm judge:probe`
+with `PROBE_REPEATS=3`, all three repeats agree on every entry):
+
+| Line                                        | Pair             | rubric@2 points | rubric@3 points    |
+| ------------------------------------------- | ---------------- | --------------- | ------------------ |
+| that'll just about do it                    | halftime / grief | 4               | 2 (filler, filler) |
+| today is yesterday's tomorrow               | halftime / grief | 0 (generic)     | 2 (filler, filler) |
+| Nobody gets through this part alone         | halftime / grief | 0 (generic)     | 4                  |
+| We need to talk                             | vet / review     | 0 (generic)     | 3                  |
+| I will love you until death takes me        | vow / villain    | 5               | 3                  |
+| You are mine, now and forever               | vow / villain    | 6               | 4                  |
+| I promise to stay, and you will regret this | vow / villain    | 0 (stitched)    | 0 (stitched)       |
+| Tonight we feast on what remains            | specials / spell | 4               | 4                  |
+
+**Known limits.** Jev is conservative with the top level: authored 3s mostly
+land as 2s ("You are mine, now and forever" reads 1.8 in both worlds), so 6
+is rare. "We need to talk" still reads 1.6 (Fits) as a bad review, because it
+is the stock opener of exactly that meeting. The deck in `convex/content.ts`
+records authored intent; divergences are diagnostic, not failures.
+
+## rubric@1 and rubric@2 reconciliation — 2026-09-20 (superseded)
 
 Card: kanban t_b451e516 (tenant misty-step-parlor-games), follow-up to the
-Double Take release (t_0db65fd9). This document records every decision that
-reconciled the CALIBRATION deck in `convex/content.ts` with live judge
-behavior, per the operator directive of 2026-09-20: test the semantic
-suitability of each example; do not bless current judge output.
+Double Take release (t_0db65fd9). This section records the decisions that
+reconciled the earlier CALIBRATION deck with live judge behavior, per the
+operator directive of 2026-09-20: test the semantic suitability of each
+example; do not bless current judge output. The deck entries and the scoring
+described below were replaced by rubric@3.
 
 ## Deck semantics
 

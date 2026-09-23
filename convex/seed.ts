@@ -5,7 +5,8 @@
 
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
-import { CALIBRATION, PAIRS } from "./content";
+import { CALIBRATION } from "./content";
+import { PAIRS } from "./deck";
 
 export const run = internalMutation({
   args: {},

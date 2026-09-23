@@ -58,7 +58,6 @@ describe("product event contract", () => {
         props: {
           roundIndex: 1,
           coherence: "pass",
-          specificity: "pass",
           refused: false,
         },
       },
@@ -117,7 +116,6 @@ describe("product event contract", () => {
         props: {
           roundIndex: 1,
           coherence: "fail",
-          specificity: "fail",
           refused: true,
         },
       } as ProductEventInput),
@@ -129,7 +127,6 @@ describe("product event contract", () => {
         props: {
           roundIndex: 1,
           coherence: "pass",
-          specificity: "pass",
           refused: false,
           refuseReason: "outage",
         },

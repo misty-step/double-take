@@ -1,0 +1,886 @@
+<!doctype html>
+<!--
+  Double Take, group prototype "One Line, together".
+  Three simulated players (Priya, Sam, Jo) share the table with you. Every line,
+  theirs and yours, is judged by live Jev through ../serve.ts. Not production code.
+
+  QA hash states (instant, no timers):
+    #state=home         #state=howto         #state=start        #state=join
+    #state=join-error   #state=lobby         #state=lobby-guest
+    #state=write        #state=write-typing  #state=write-over   #state=write-locked
+    #state=write-last   #state=write-error
+    #state=reveal-a     #state=reveal-b      #state=reveal-scored
+    #state=reveal-rejected  #state=reveal-stitched  #state=reveal-perfect
+    #state=round        #state=round-tie     #state=round-last   #state=final
+  Other hash flags: #fail=1 (your next lock in fails)
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Double Take</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap"
+    />
+    <style>
+      :root {
+        --page: #ffffff;
+        --ink: #000000;
+        --ink-2: #595959;
+        --rule: #e0e0e0;
+        --serif: "Newsreader", Georgia, "Times New Roman", serif;
+        --sans: "Libre Franklin", "Helvetica Neue", Arial, sans-serif;
+        --header: 56px;
+        --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --ease-wipe: cubic-bezier(0.65, 0, 0.35, 1);
+        --wipe: 720ms;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        background: var(--page); color: var(--ink);
+        font: 400 16px/1.45 var(--sans);
+        -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+      }
+      button, textarea, input { font: inherit; color: inherit; }
+      :focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+      [hidden] { display: none !important; }
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 48px; padding: 0 28px; border-radius: 999px;
+        border: 1.5px solid var(--ink); background: var(--page); color: var(--ink);
+        font: 600 16px/1 var(--sans); cursor: pointer;
+        transition: transform 120ms var(--ease-out);
+      }
+      .btn:active { transform: scale(0.97); }
+      .btn.primary { background: var(--ink); color: var(--page); }
+      .btn:focus-visible { outline-color: var(--ink); }
+      .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+      .btn.wide { min-width: 220px; }
+      .quiet {
+        min-height: 44px; padding: 0 12px; border: 0; background: none; cursor: pointer;
+        font: 600 15px/1 var(--sans); text-decoration: underline; text-underline-offset: 4px;
+      }
+      .mark { display: block; flex: none; }
+
+      /* Header */
+      .bar {
+        position: relative; z-index: 3; height: var(--header);
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 0 8px 0 16px; border-bottom: 1px solid var(--rule); background: var(--page);
+      }
+      .home { display: flex; align-items: center; gap: 10px; min-height: 44px; border: 0; background: none; cursor: pointer; padding: 0; }
+      .home span { font: 600 21px/1 var(--serif); letter-spacing: -0.01em; }
+      .bar-right { display: flex; align-items: center; gap: 4px; }
+      .bar-note { font-size: 14px; color: var(--ink-2); white-space: nowrap; }
+      .icon-btn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+      .icon-btn svg { width: 24px; height: 24px; }
+
+      /* Pages (home, name, lobby, round, final) */
+      .page { max-width: 30rem; margin: 0 auto; padding: 28px 20px 56px; display: grid; gap: 24px; }
+      .center { text-align: center; justify-items: center; }
+      .splash { min-height: 100dvh; display: grid; place-items: center; padding: 32px 24px; text-align: center; }
+      .splash-inner { display: grid; justify-items: center; gap: 18px; max-width: 23rem; }
+      .splash h1 { margin: 6px 0 0; font: 600 44px/1 var(--serif); letter-spacing: -0.02em; }
+      .lede { margin: 0; font: 400 22px/1.3 var(--serif); text-wrap: balance; }
+      .actions { display: grid; gap: 10px; justify-items: center; }
+      .meta { margin: 0; color: var(--ink-2); font-size: 14px; }
+      h1.title { margin: 0; font: 600 34px/1.1 var(--serif); letter-spacing: -0.015em; text-wrap: balance; }
+      .field { display: grid; gap: 8px; width: 100%; }
+      .field label { font-weight: 600; font-size: 15px; }
+      .field input {
+        width: 100%; min-height: 52px; padding: 0 16px; border: 1.5px solid var(--ink); border-radius: 12px;
+        background: var(--page); font: 400 20px/1 var(--serif);
+      }
+      .field input:focus-visible { outline-offset: 2px; }
+      .field input.code { font: 600 30px/1 var(--serif); letter-spacing: 0.3em; text-transform: uppercase; text-align: center; }
+      .alert { margin: 0; font-weight: 600; font-size: 15px; text-align: center; }
+
+      /* Lobby */
+      .code-block { display: grid; justify-items: center; gap: 6px; }
+      .code-block .code { margin: 0 -0.12em 0 0; font: 600 64px/1 var(--serif); letter-spacing: 0.12em; }
+      .roster { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); width: 100%; }
+      .roster li { display: flex; align-items: center; gap: 12px; min-height: 56px; border-bottom: 1px solid var(--rule); font-size: 17px; }
+      .roster .tag { margin-left: auto; color: var(--ink-2); font-size: 14px; }
+      .avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--page); font: 600 14px/1 var(--sans); flex: none; }
+      .roster li.joining { color: var(--ink-2); }
+      .roster li.joining .avatar { background: none; color: var(--ink-2); box-shadow: inset 0 0 0 1.5px var(--rule); }
+
+      /* Seam: write between the two worlds */
+      .seam { height: calc(100dvh - var(--header)); display: flex; flex-direction: column; }
+      .world {
+        flex: 1 1 0; min-height: 76px; display: grid; place-items: center; padding: 12px 20px;
+        background: var(--bg); color: var(--wink); transition: flex-grow 460ms var(--ease-out);
+      }
+      .world-label { margin: 0; font: italic 400 clamp(30px, 9vw, 44px)/1.1 var(--serif); letter-spacing: -0.01em; text-align: center; text-wrap: balance; }
+      .band {
+        flex: none; background: var(--page); padding: 16px 20px;
+        display: grid; justify-items: center; gap: 10px; transition: opacity 200ms;
+      }
+      .band textarea {
+        width: min(100%, 30rem); border: 0; resize: none; background: transparent; padding: 0;
+        font: 400 clamp(24px, 6.8vw, 32px)/1.2 var(--serif); text-align: center; overflow: hidden;
+      }
+      .band textarea::placeholder { color: #767676; }
+      .band textarea:focus-visible { outline: none; }
+      .band:focus-within { box-shadow: inset 0 -2px 0 var(--ink); }
+      .locked-line { margin: 0; width: min(100%, 30rem); text-align: center; font: 400 clamp(24px, 6.8vw, 32px)/1.2 var(--serif); }
+      .status { min-height: 20px; margin: 0; color: var(--ink-2); font-size: 14px; text-align: center; }
+      .status.strong { color: var(--ink); font-weight: 700; }
+      .table { display: flex; justify-content: center; gap: 14px; margin: 0; padding: 0; list-style: none; }
+      .seat { display: grid; justify-items: center; gap: 4px; font-size: 12px; min-width: 44px; }
+      .seat .avatar { width: 28px; height: 28px; font-size: 12px; background: none; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+      .seat.in .avatar { background: var(--ink); color: var(--page); }
+      .seat.in .avatar::after { content: ""; }
+      .seam.flooding .world-a { flex-grow: 40; }
+      .seam.flooding .world-b { flex-grow: 0; min-height: 0; padding: 0; }
+      .seam.flooding .world-b .world-label, .seam.flooding .band { opacity: 0; }
+
+      /* Reveal stage: one line, two stacked world layers */
+      .reveal { position: relative; height: calc(100dvh - var(--header)); overflow: hidden; }
+      .stage { position: absolute; inset: 0; }
+      .layer {
+        position: absolute; inset: 0; padding: 24px 24px 0;
+        display: grid; grid-template-rows: 1fr auto 1fr; justify-items: center; text-align: center;
+        background: var(--bg); color: var(--wink);
+        transition: clip-path var(--wipe) var(--ease-wipe);
+      }
+      .layer-b { clip-path: inset(100% 0 0 0); }
+      [data-side="b"] > .layer-b { clip-path: inset(0 0 0 0); }
+      .count { position: absolute; top: 16px; left: 0; right: 0; margin: 0; font-size: 14px; opacity: 0.85; }
+      .layer .world-label { align-self: end; margin-bottom: 26px; font-size: clamp(20px, 5.4vw, 26px); }
+      .line { margin: 0; width: min(100%, 20ch); font: 400 clamp(32px, 9vw, 50px)/1.1 var(--serif); letter-spacing: -0.012em; text-wrap: balance; }
+      .verdict { align-self: start; margin-top: 24px; display: grid; justify-items: center; gap: 8px; align-content: start; }
+      .verdict .word { font: 600 17px/1 var(--sans); }
+      .pips { display: flex; gap: 6px; }
+      .pip { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid currentColor; opacity: 0.4; }
+      .pip.on { background: currentColor; opacity: 1; }
+      .v { display: grid; justify-items: center; gap: 8px; opacity: 0; transform: translateY(4px); transition: opacity 220ms, transform 220ms var(--ease-out); }
+      .v.shown { opacity: 1; transform: none; }
+      .score { display: grid; justify-items: center; gap: 2px; margin-top: 18px; opacity: 0; transform: scale(0.92); transition: opacity 260ms, transform 320ms var(--ease-out); }
+      .score.shown { opacity: 1; transform: none; }
+      .score b { font: 600 56px/1 var(--serif); }
+      .score .unit { font-size: 14px; }
+      .score .by { margin: 8px 0 0; font: 600 20px/1.1 var(--sans); }
+      .score .why { margin: 4px 0 0; font-size: 15px; }
+      .score .named { margin: 2px 0 0; font: italic 400 20px/1.1 var(--serif); }
+
+      /* World cards on white pages */
+      .card { position: relative; height: 13rem; border-radius: 18px; overflow: hidden; cursor: pointer; border: 0; padding: 0; width: 100%; display: block; text-align: center; }
+      .card .layer { padding: 16px 20px; }
+      .card .world-label { margin-bottom: 12px; font-size: 18px; }
+      .card .line { font-size: clamp(22px, 6.2vw, 28px); width: min(100%, 22ch); }
+      .card .verdict { margin-top: 12px; }
+      .card .v { opacity: 1; transform: none; }
+      .caption { margin: 8px 0 0; text-align: center; font-size: 14px; color: var(--ink-2); }
+
+      /* Ranked lines and standings */
+      .ranked { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+      .ranked li { display: grid; grid-template-columns: 2.4rem 1fr; gap: 4px 12px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+      .ranked .pts { grid-row: span 2; font: 600 28px/1 var(--serif); text-align: center; padding-top: 2px; }
+      .ranked .txt { font: 400 19px/1.25 var(--serif); }
+      .ranked .sub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+      .ranked .sub b { font-weight: 600; }
+      .ranked .mini { display: flex; align-items: center; gap: 6px; }
+      .ranked .mini .pips { gap: 3px; }
+      .ranked .mini .pip { width: 10px; height: 10px; border-radius: 3px; border-color: rgb(0 0 0 / 35%); opacity: 1; }
+      .ranked .mini .pip.on { background: var(--ink); border-color: var(--ink); }
+      .ranked .reason { color: var(--ink-2); }
+      .swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 1px rgb(0 0 0 / 25%); flex: none; }
+      .standings { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+      .standings li { display: grid; grid-template-columns: 1.4rem 1fr auto auto; align-items: center; gap: 10px; font-size: 17px; }
+      .standings .pos { color: var(--ink-2); font-size: 15px; }
+      .standings .gain { color: var(--ink-2); font-size: 14px; }
+      .standings .total { font: 600 22px/1 var(--serif); min-width: 2ch; text-align: right; }
+      .standings li.lead { font-weight: 600; }
+      h2.sec { margin: 0; font: 600 22px/1.1 var(--serif); }
+      .wait-note { margin: 0; text-align: center; color: var(--ink-2); font-size: 15px; }
+
+      /* How to play */
+      dialog { width: min(100% - 24px, 28rem); max-height: calc(100dvh - 24px); border: 0; border-radius: 20px; padding: 0; color: var(--ink); background: var(--page); }
+      dialog::backdrop { background: rgb(0 0 0 / 45%); }
+      .howto { padding: 22px 22px 24px; display: grid; gap: 14px; }
+      .howto-top { display: flex; justify-content: space-between; align-items: center; }
+      .howto h2 { margin: 0; font: 600 28px/1 var(--serif); }
+      .howto .lede { font-size: 21px; }
+      .howto ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 8px; }
+      .howto .card { height: 12rem; }
+
+      .toast {
+        position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 10;
+        transform: translate(-50%, 16px); opacity: 0; pointer-events: none; width: max-content; max-width: calc(100vw - 32px);
+        background: var(--ink); color: var(--page); border-radius: 999px; padding: 12px 20px; text-align: center;
+        font-weight: 600; font-size: 15px; transition: opacity 180ms, transform 180ms var(--ease-out);
+      }
+      .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+      @media (prefers-reduced-motion: reduce) {
+        :root { --wipe: 1ms; }
+        .layer-b { transition: opacity 160ms linear; clip-path: none; opacity: 0; }
+        [data-side="b"] > .layer-b { opacity: 1; }
+        .world, .band, .toast, .v, .score { transition-duration: 1ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="mark" viewBox="0 0 32 32">
+        <rect width="32" height="32" rx="7" fill="#F8DCE1" />
+        <path d="M0 17h32v8a7 7 0 0 1-7 7H7a7 7 0 0 1-7-7z" fill="#16203A" />
+        <rect y="13" width="32" height="5" fill="#fff" />
+        <rect x="7" y="14.75" width="18" height="1.5" rx=".75" fill="#000" />
+        <rect x=".5" y=".5" width="31" height="31" rx="6.5" fill="none" stroke="#000" stroke-opacity=".12" />
+      </symbol>
+    </svg>
+
+    <!-- Home -->
+    <main id="home" class="splash" hidden>
+      <div class="splash-inner">
+        <svg class="mark" width="72" height="72" aria-hidden="true"><use href="#mark" /></svg>
+        <h1>Double Take</h1>
+        <p class="lede">Everyone gets the same two worlds. Write the line that fits both best.</p>
+        <div class="actions">
+          <button class="btn primary wide" id="go-start">Start a game</button>
+          <button class="btn wide" id="go-join">Join a game</button>
+          <button class="quiet" id="home-howto">How to play</button>
+        </div>
+        <p class="meta">2 to 8 players, each on their own phone.</p>
+      </div>
+    </main>
+
+    <header class="bar" id="bar" hidden>
+      <button class="home" id="to-home" aria-label="Double Take home">
+        <svg class="mark" width="26" height="26" aria-hidden="true"><use href="#mark" /></svg>
+        <span>Double Take</span>
+      </button>
+      <div class="bar-right">
+        <span class="bar-note" id="bar-note"></span>
+        <button class="icon-btn" id="help" aria-label="How to play">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <circle cx="12" cy="12" r="9.2" /><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6" stroke-linecap="round" /><circle cx="12" cy="16.9" r=".6" fill="currentColor" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Start or join: your name, plus the code when joining -->
+    <main id="name" hidden>
+      <form class="page center" id="name-form" novalidate>
+        <h1 class="title" id="name-h"></h1>
+        <div class="field" id="code-field">
+          <label for="code-in">Game code</label>
+          <input id="code-in" class="code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" />
+        </div>
+        <div class="field">
+          <label for="name-in">Your name</label>
+          <input id="name-in" maxlength="16" autocomplete="nickname" />
+        </div>
+        <p class="alert" id="name-alert" role="alert" hidden></p>
+        <button class="btn primary wide" id="name-go" type="submit"></button>
+      </form>
+    </main>
+
+    <!-- Lobby -->
+    <main id="lobby" hidden>
+      <div class="page center">
+        <div class="code-block">
+          <h1 class="meta" style="font-weight:400">Game code</h1>
+          <p class="code" id="lobby-code" aria-live="off"></p>
+          <button class="quiet" id="copy-invite">Copy invite link</button>
+        </div>
+        <ul class="roster" id="roster" aria-label="Players"></ul>
+        <p class="meta" id="lobby-note"></p>
+        <button class="btn primary wide" id="start-game"></button>
+        <p class="wait-note" id="lobby-wait" hidden></p>
+      </div>
+    </main>
+
+    <!-- Write on the seam -->
+    <main id="write" class="seam" hidden aria-labelledby="write-h">
+      <h1 class="sr-only" id="write-h"></h1>
+      <div class="world world-a"><p class="world-label" id="wa"></p></div>
+      <form class="band" id="band" novalidate>
+        <ul class="table" id="table" aria-label="Who has locked in"></ul>
+        <label class="sr-only" for="line">Your line, one sentence, twelve words at most</label>
+        <textarea id="line" rows="1" maxlength="160" placeholder="Write one line for both." autocomplete="off" autocapitalize="sentences" enterkeyhint="done"></textarea>
+        <p class="locked-line" id="locked-line" hidden></p>
+        <p class="alert" id="write-alert" role="alert" hidden></p>
+        <p class="status" id="status" aria-live="polite"></p>
+        <button class="btn primary wide" id="lock" type="submit" disabled>Lock it in</button>
+      </form>
+      <div class="world world-b"><p class="world-label" id="wb"></p></div>
+    </main>
+
+    <!-- Reveal: every line, lowest to highest, names last -->
+    <main id="reveal" class="reveal" hidden>
+      <div class="stage" id="stage" data-side="a">
+        <div class="layer layer-a" id="layer-a"></div>
+        <div class="layer layer-b" id="layer-b"></div>
+      </div>
+      <p class="sr-only" id="live" aria-live="polite"></p>
+    </main>
+
+    <!-- Round result -->
+    <main id="round" hidden>
+      <div class="page">
+        <div class="center" style="display:grid;gap:6px">
+          <p class="meta" id="round-no"></p>
+          <h1 class="title" id="round-h"></h1>
+        </div>
+        <div>
+          <button class="card" id="round-card" data-side="a" aria-describedby="round-cap"></button>
+          <p class="caption" id="round-cap"></p>
+        </div>
+        <ol class="ranked" id="ranked" aria-label="Every line this round"></ol>
+        <section style="display:grid;gap:12px" aria-labelledby="scores-h">
+          <h2 class="sec" id="scores-h">Scores</h2>
+          <ol class="standings" id="standings"></ol>
+        </section>
+        <div class="actions">
+          <button class="btn primary wide" id="next"></button>
+          <p class="wait-note" id="next-wait" hidden></p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Final -->
+    <main id="final" hidden>
+      <div class="page">
+        <div class="center" style="display:grid;gap:6px">
+          <p class="meta">Final scores</p>
+          <h1 class="title" id="final-h"></h1>
+        </div>
+        <ol class="standings" id="final-standings"></ol>
+        <section style="display:grid;gap:10px" aria-labelledby="best-h">
+          <h2 class="sec" id="best-h">Line of the game</h2>
+          <button class="card" id="best-card" data-side="a" aria-describedby="best-cap"></button>
+          <p class="caption" id="best-cap"></p>
+        </section>
+        <div class="actions">
+          <button class="btn primary wide" id="again">Play again</button>
+          <button class="quiet" id="leave">Leave the game</button>
+        </div>
+      </div>
+    </main>
+
+    <dialog id="howto" aria-labelledby="howto-h">
+      <div class="howto">
+        <div class="howto-top">
+          <h2 id="howto-h">How to play</h2>
+          <button class="icon-btn" id="howto-close" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+        <p class="lede">Everyone gets the same two worlds. Write the line that fits both best.</p>
+        <button class="card" id="example" data-side="a" aria-describedby="example-cap"></button>
+        <p class="caption" id="example-cap" style="margin-top:-6px">Same words. Tap to see the other world.</p>
+        <ul>
+          <li>Each world rates your line from 0 to 3. <b>Your points are both added together.</b> Six is a double take.</li>
+          <li>One sentence, twelve words at most. Stitched halves, safe lines, and lines one world rejects score nothing.</li>
+          <li>Lines are revealed without names. Most points takes the round. Three rounds.</li>
+        </ul>
+        <button class="btn primary" id="howto-ok" autofocus>Got it</button>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status"></div>
+
+    <script src="../shared/game.js"></script>
+    <script>
+      "use strict";
+      const { PAIRS, SIDE_WORDS, GATE_COPY, MAX_WORDS, BOTS, BOT_LINES, ROUND_PAIRS } = DT;
+      const LAST_CLOCK_MS = 30000;
+      const REVEAL = { verdictA: 700, wipe: 1800, verdictB: 2600, score: 3400, next: 5400 };
+      const $ = (id) => document.getElementById(id);
+      const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+      const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+      const pairByKey = (k) => PAIRS.find((p) => p.key === k);
+
+      const S = {
+        screen: "home",
+        mode: "start",
+        name: "",
+        code: "KXRM",
+        hostId: "me",
+        players: [],
+        round: 0,
+        subs: {},
+        lastDeadline: null,
+        order: [],
+        failNext: false,
+        instant: false,
+        timers: [],
+        ticker: null,
+      };
+      try { S.name = localStorage.getItem("dt:name") || ""; } catch {}
+      const pair = () => pairByKey(ROUND_PAIRS[S.round]);
+      const me = () => S.players.find((p) => p.id === "me");
+      const isHost = () => S.hostId === "me";
+      const hostName = () => S.players.find((p) => p.id === S.hostId).name;
+      const displayName = (p) => (p.id === "me" ? "You" : p.name);
+
+      function later(fn, ms) { S.timers.push(setTimeout(fn, S.instant ? 0 : ms)); }
+      function clearTimers() { S.timers.forEach(clearTimeout); S.timers = []; clearInterval(S.ticker); S.ticker = null; }
+
+      function show(screen) {
+        S.screen = screen;
+        for (const id of ["home", "name", "lobby", "write", "reveal", "round", "final"]) $(id).hidden = id !== screen;
+        $("bar").hidden = screen === "home";
+        const inGame = ["write", "reveal", "round"].includes(screen);
+        $("bar-note").textContent = inGame ? `Round ${S.round + 1} of ${ROUND_PAIRS.length}` : screen === "lobby" ? "" : "";
+        if (screen !== "reveal") setTheme("#ffffff");
+        window.scrollTo(0, 0);
+      }
+      function setTheme(c) { document.querySelector('meta[name="theme-color"]').setAttribute("content", c); }
+      function paint(el, w) { el.style.setProperty("--bg", w.bg); el.style.setProperty("--wink", w.ink); }
+      function pips(n) { return `<span class="pips" aria-hidden="true">${[0, 1, 2].map((k) => `<span class="pip${k < n ? " on" : ""}"></span>`).join("")}</span>`; }
+      const gated = (r) => r.gate === "stitched" || r.gate === "generic";
+      const sideLevel = (r, k) => (gated(r) ? 0 : r[k]);
+      const sideWord = (r, k) => (gated(r) ? "Doesn't count" : SIDE_WORDS[r[k]]);
+      const initial = (p) => displayName(p).charAt(0).toUpperCase();
+      function toast(msg) {
+        const t = $("toast"); t.textContent = msg; t.classList.add("show");
+        clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600);
+      }
+
+      /* Two stacked world layers for a line: identical grids keep the words still. */
+      function layersHTML(p, text, r, opts = {}) {
+        const layer = (k) => {
+          const w = p[k];
+          const v = r ? `<div class="v${opts.shown ? " shown" : ""}" data-v="${k}">${pips(sideLevel(r, k))}<span class="word">${sideWord(r, k)}</span></div>` : "";
+          const score = k === "b" && opts.score ? `<div class="score${opts.shown ? " shown" : ""}" data-score>${opts.score}</div>` : "";
+          const count = opts.count ? `<p class="count">${opts.count}</p>` : "";
+          return `${count}<p class="world-label">${esc(w.label)}</p><p class="line">${esc(text)}</p><div class="verdict">${v}${score}</div>`;
+        };
+        return [layer("a"), layer("b")];
+      }
+      function fillCard(card, p, text, r) {
+        card.innerHTML = `<div class="layer layer-a"></div><div class="layer layer-b"></div>`;
+        const [la, lb] = card.children;
+        paint(la, p.a); paint(lb, p.b);
+        [la.innerHTML, lb.innerHTML] = layersHTML(p, text, r, { shown: true });
+        syncCard(card, p);
+        card.onclick = () => { card.dataset.side = card.dataset.side === "a" ? "b" : "a"; syncCard(card, p); };
+      }
+      function syncCard(card, p) {
+        const s = card.dataset.side;
+        card.children[0].setAttribute("aria-hidden", s === "b");
+        card.children[1].setAttribute("aria-hidden", s === "a");
+        card.setAttribute("aria-label", `${card.querySelector(".line").textContent}. Read as ${(s === "a" ? p.a : p.b).label}. Flip to ${(s === "a" ? p.b : p.a).label}.`);
+      }
+
+      /* Home, name, lobby */
+      function renderHome() { clearTimers(); show("home"); }
+      function renderName(mode, opts = {}) {
+        S.mode = mode;
+        $("name-h").textContent = mode === "join" ? "Join a game" : "Start a game";
+        $("code-field").hidden = mode !== "join";
+        $("name-go").textContent = mode === "join" ? "Join" : "Start a game";
+        $("name-in").value = opts.name ?? S.name;
+        $("code-in").value = opts.code ?? "";
+        $("name-alert").hidden = !opts.error;
+        if (opts.error) $("name-alert").textContent = opts.error;
+        show("name");
+        if (!S.instant) (mode === "join" ? $("code-in") : $("name-in")).focus();
+      }
+      $("name-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = $("name-in").value.trim();
+        const code = $("code-in").value.trim().toUpperCase();
+        if (!name) return renderName(S.mode, { name, code, error: "Add your name so the table knows who wrote what." });
+        if (S.mode === "join" && code !== S.code) return renderName("join", { name, code, error: "No game with that code. Check it and try again." });
+        S.name = name;
+        try { localStorage.setItem("dt:name", name); } catch {}
+        enterLobby(S.mode === "join" ? "priya" : "me");
+      });
+
+      /* joined: how many friends are already here (QA seeding); otherwise they arrive one by one. */
+      function enterLobby(hostId, joined) {
+        clearTimers();
+        S.hostId = hostId;
+        S.players = [{ id: "me", name: S.name || "Ada", score: 0 }];
+        S.pending = BOTS.map((b) => ({ id: b.id, name: b.name, score: 0 }));
+        if (hostId !== "me") S.players.unshift(S.pending.shift());
+        if (joined != null) S.players.push(...S.pending.splice(0, joined));
+        else S.pending.forEach((_, i) => later(() => { S.players.push(S.pending.shift()); renderLobby(); }, 900 * (i + 1)));
+        renderLobby();
+      }
+      function renderLobby() {
+        $("lobby-code").textContent = S.code;
+        $("lobby-code").setAttribute("aria-label", `Game code ${S.code.split("").join(" ")}`);
+        $("roster").innerHTML = S.players
+          .map((p) => `<li><span class="avatar" aria-hidden="true">${initial(p)}</span>${esc(displayName(p))}<span class="tag">${p.id === S.hostId ? "Host" : ""}</span></li>`)
+          .join("") + (S.pending.length ? `<li class="joining"><span class="avatar" aria-hidden="true"></span>Waiting for friends to join</li>` : "");
+        const enough = S.players.length >= 2;
+        $("lobby-note").textContent = `${S.players.length} ${S.players.length === 1 ? "player" : "players"}. Three rounds, about five minutes.`;
+        $("start-game").hidden = !isHost();
+        $("start-game").disabled = !enough;
+        $("start-game").textContent = enough ? "Start the game" : "Waiting for another player";
+        $("lobby-wait").hidden = isHost();
+        $("lobby-wait").textContent = `${hostName()} starts the game when everyone is here.`;
+        show("lobby");
+      }
+      $("start-game").addEventListener("click", () => { S.players.forEach((p) => (p.score = 0)); S.best = null; startRound(0); });
+      $("copy-invite").addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(`https://doubletake.example/${S.code}`); toast("Invite link copied."); }
+        catch { toast("Couldn't copy. Share the code instead."); }
+      });
+
+      /* Writing: everyone gets the same pair; lines are judged as they arrive. */
+      function startRound(i) {
+        clearTimers();
+        S.round = i;
+        S.subs = {};
+        S.lastDeadline = null;
+        renderWrite({ text: "" });
+        if (!S.instant) {
+          for (const b of BOTS) if (S.players.some((p) => p.id === b.id)) later(() => botSubmit(b.id), b.delay + Math.round(Math.random() * 900));
+        }
+      }
+      /* Simulated players lock in like people do; their lines go to live Jev like yours. */
+      function botSubmit(id) {
+        const text = BOT_LINES[pair().key][id];
+        S.subs[id] = { text, r: null, pts: 0 };
+        afterSubmit();
+        judgeLine(id, text, S.round, 1);
+      }
+      function judgeLine(id, text, round, attempt) {
+        DT.judge(pair(), text)
+          .then((r) => {
+            const s = S.subs[id];
+            if (S.round !== round || !s || s.text !== text) return;
+            s.r = r; s.pts = DT.groupPoints(r);
+            maybeReveal();
+          })
+          .catch(() => {
+            const s = S.subs[id];
+            if (S.round !== round || !s || s.text !== text) return;
+            if (attempt < 3) return later(() => judgeLine(id, text, round, attempt + 1), 1500);
+            s.failed = true;
+            toast(`Jev couldn't score ${S.players.find((x) => x.id === id).name}'s line, so it sits out this round.`);
+            maybeReveal();
+          });
+      }
+      function afterSubmit() {
+        const missing = S.players.filter((p) => !S.subs[p.id]);
+        if (missing.length === 1 && !S.lastDeadline) {
+          S.lastDeadline = Date.now() + LAST_CLOCK_MS;
+          S.ticker = setInterval(renderStatus, 1000);
+          later(closeWriting, LAST_CLOCK_MS);
+        }
+        renderStatus();
+        maybeReveal();
+      }
+      function maybeReveal() {
+        const everyoneIn = S.players.every((p) => S.subs[p.id]);
+        const clockDone = S.lastDeadline && Date.now() >= S.lastDeadline;
+        const allJudged = Object.values(S.subs).every((s) => s.r || s.failed);
+        if ((everyoneIn || clockDone) && allJudged) later(startReveal, 700);
+      }
+      function closeWriting() { S.lastDeadline = Date.now() - 1; maybeReveal(); }
+
+      function renderWrite(opts = {}) {
+        const p = pair();
+        const seam = $("write");
+        seam.classList.remove("flooding");
+        paint(seam.querySelector(".world-a"), p.a);
+        paint(seam.querySelector(".world-b"), p.b);
+        $("wa").textContent = p.a.label;
+        $("wb").textContent = p.b.label;
+        $("write-h").textContent = `Round ${S.round + 1}: ${p.a.label} and ${p.b.label.toLowerCase()}`;
+        if (opts.text != null) $("line").value = opts.text;
+        $("write-alert").hidden = !opts.error;
+        if (opts.error) $("write-alert").textContent = "Your line didn't go through. Lock it in again.";
+        show("write");
+        renderStatus();
+        if (!S.instant && !S.subs.me) $("line").focus({ preventScroll: true });
+      }
+      function renderStatus() {
+        const mine = S.subs.me;
+        $("table").innerHTML = S.players
+          .map((p) => `<li class="seat${S.subs[p.id] ? " in" : ""}"><span class="avatar" aria-hidden="true">${initial(p)}</span><span>${esc(displayName(p))}</span><span class="sr-only">${S.subs[p.id] ? "locked in" : "writing"}</span></li>`)
+          .join("");
+        $("line").hidden = !!mine;
+        $("lock").hidden = !!mine;
+        $("locked-line").hidden = !mine;
+        if (mine) $("locked-line").textContent = mine.text;
+        const st = $("status");
+        const missing = S.players.filter((p) => !S.subs[p.id]);
+        const secs = S.lastDeadline ? Math.max(0, Math.ceil((S.lastDeadline - Date.now()) / 1000)) : null;
+        st.classList.remove("strong");
+        if (!mine) {
+          const n = DT.words($("line").value);
+          const left = MAX_WORDS - n;
+          if (secs != null) { st.textContent = `You're the last one. ${secs} seconds.`; st.classList.add("strong"); }
+          else if (left < 0) { st.textContent = `${-left} ${-left === 1 ? "word" : "words"} over`; st.classList.add("strong"); }
+          else if (left <= 3) st.textContent = `${left} ${left === 1 ? "word" : "words"} left`;
+          else st.textContent = missing.length === S.players.length ? "Nobody has locked in yet." : `${S.players.length - missing.length} of ${S.players.length} locked in.`;
+          $("lock").disabled = n === 0 || left < 0;
+        } else if (missing.length === 0) {
+          st.textContent = "Everyone's in. Here come the lines.";
+        } else {
+          const names = missing.map(displayName);
+          const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+          st.textContent = secs != null ? `Waiting on ${who}. ${secs} seconds.` : `Locked in. Waiting on ${who}.`;
+        }
+        const ta = $("line");
+        ta.style.height = "auto";
+        ta.style.height = ta.scrollHeight + "px";
+      }
+      $("line").addEventListener("input", renderStatus);
+      $("line").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lockIn(); } });
+      $("band").addEventListener("submit", (e) => { e.preventDefault(); lockIn(); });
+
+      function lockIn() {
+        const text = $("line").value.replace(/\s+/g, " ").trim();
+        const n = DT.words(text);
+        if (!n || n > MAX_WORDS || S.subs.me || S.screen !== "write") return;
+        const fail = S.failNext;
+        S.failNext = false;
+        S.subs.me = { text, r: null, pts: 0 };
+        $("write-alert").hidden = true;
+        afterSubmit();
+        DT.judge(pair(), text, { fail })
+          .then((r) => { if (!S.subs.me || S.subs.me.text !== text) return; S.subs.me.r = r; S.subs.me.pts = DT.groupPoints(r); maybeReveal(); })
+          .catch(() => { delete S.subs.me; renderWrite({ text, error: true }); });
+      }
+
+      /* Reveal: lowest to highest, names withheld until the points land. */
+      function startReveal() {
+        if (S.screen !== "write") return;
+        clearTimers();
+        const ranked = Object.entries(S.subs).filter(([, s]) => s.r).sort(([, x], [, y]) => x.pts - y.pts || Math.min(x.r.a, x.r.b) - Math.min(y.r.a, y.r.b));
+        S.order = ranked.map(([id]) => id);
+        for (const p of S.players) { p.gain = S.subs[p.id] && S.subs[p.id].r ? S.subs[p.id].pts : 0; p.score += p.gain; }
+        if (!S.order.length) return renderRound();
+        trackBest();
+        $("write").classList.add("flooding");
+        later(() => { show("reveal"); playLine(0); }, 460);
+      }
+      function scoreHTML(id, s) {
+        const p = S.players.find((x) => x.id === id);
+        const reason = DT.zeroReason(s.r);
+        const unit = gated(s.r) ? "points" : `${s.r.a} + ${s.r.b}${reason ? ", so no points" : " points"}`;
+        return `<b>${s.pts}</b><span class="unit">${unit}</span>${s.pts === 6 ? `<p class="named">Double take</p>` : ""}<p class="by">${esc(displayName(p))}</p>${reason ? `<p class="why">${GATE_COPY[reason]}</p>` : ""}`;
+      }
+      function buildStage(id, i, n) {
+        const p = pair();
+        const s = S.subs[id];
+        const stage = $("stage");
+        paint($("layer-a"), p.a); paint($("layer-b"), p.b);
+        [$("layer-a").innerHTML, $("layer-b").innerHTML] = layersHTML(p, s.text, s.r, { score: scoreHTML(id, s), count: `Line ${i + 1} of ${n}` });
+        stage.dataset.side = "a";
+        syncStage();
+      }
+      function syncStage() {
+        const side = $("stage").dataset.side;
+        $("layer-a").setAttribute("aria-hidden", side === "b");
+        $("layer-b").setAttribute("aria-hidden", side === "a");
+        setTheme(pair()[side].bg);
+      }
+      function step(name) {
+        const st = $("stage");
+        const s = S.subs[S.order[S.revealIdx]];
+        const p = pair();
+        if (name === "verdictA") { st.querySelector('[data-v="a"]').classList.add("shown"); $("live").textContent = `${s.text}. ${p.a.label}: ${sideWord(s.r, "a")}.`; }
+        if (name === "wipe") { st.dataset.side = "b"; syncStage(); }
+        if (name === "verdictB") { st.querySelector('[data-v="b"]').classList.add("shown"); $("live").textContent = `${p.b.label}: ${sideWord(s.r, "b")}.`; }
+        if (name === "score") {
+          st.querySelector("[data-score]").classList.add("shown");
+          const who = S.players.find((x) => x.id === S.order[S.revealIdx]);
+          $("live").textContent = `${s.pts} points. ${displayName(who)}.`;
+        }
+      }
+      function playLine(i) {
+        S.revealIdx = i;
+        buildStage(S.order[i], i, S.order.length);
+        for (const k of ["verdictA", "wipe", "verdictB", "score"]) later(() => step(k), REVEAL[k]);
+        later(() => (i + 1 < S.order.length ? playLine(i + 1) : renderRound()), REVEAL.next);
+      }
+
+      /* Round result */
+      function leaders(list, key) {
+        const top = Math.max(...list.map(key));
+        return list.filter((x) => key(x) === top);
+      }
+      function renderRound() {
+        clearTimers();
+        const p = pair();
+        const entries = S.order.map((id) => ({ id, ...S.subs[id], player: S.players.find((x) => x.id === id) }));
+        const byBest = [...entries].sort((x, y) => y.pts - x.pts || Math.min(y.r.a, y.r.b) - Math.min(x.r.a, x.r.b));
+        const best = byBest[0];
+        const winners = best ? byBest.filter((e) => e.pts === best.pts && Math.min(e.r.a, e.r.b) === Math.min(best.r.a, best.r.b)) : [];
+        $("round-no").textContent = `Round ${S.round + 1} of ${ROUND_PAIRS.length}`;
+        const names = winners.map((w) => displayName(w.player)).sort((x, y) => (y === "You") - (x === "You"));
+        $("round-h").textContent = !best || best.pts === 0 ? "Nobody scored this round" : winners.length > 1 ? `${names.join(" and ")} tie` : `${names[0]} ${names[0] === "You" ? "take" : "takes"} the round`;
+        const card = $("round-card");
+        card.parentElement.hidden = !best;
+        if (best) {
+          card.dataset.side = "a";
+          fillCard(card, p, best.text, best.r);
+          $("round-cap").textContent = `${best.pts} points. Tap to flip.`;
+        }
+        const noLine = S.players.filter((pl) => !S.subs[pl.id]);
+        const unscored = S.players.filter((pl) => S.subs[pl.id] && S.subs[pl.id].failed);
+        $("ranked").innerHTML = byBest
+          .map((e) => {
+            const reason = DT.zeroReason(e.r);
+            const detail = gated(e.r)
+              ? `<span class="reason">${e.r.gate === "stitched" ? "Stitched" : "Too safe"}</span>`
+              : `<span class="mini"><span class="swatch" style="--bg:${p.a.bg}"></span>${pips(e.r.a)}</span><span class="mini"><span class="swatch" style="--bg:${p.b.bg}"></span>${pips(e.r.b)}</span>${reason ? `<span class="reason">One world said no</span>` : ""}`;
+            return `<li><span class="pts">${e.pts}</span><span class="txt">${esc(e.text)}</span><span class="sub"><b>${esc(displayName(e.player))}</b>${detail}</span></li>`;
+          })
+          .join("") +
+          unscored.map((pl) => `<li><span class="pts">0</span><span class="txt">${esc(S.subs[pl.id].text)}</span><span class="sub"><b>${esc(displayName(pl))}</b><span class="reason">Not scored</span></span></li>`).join("") +
+          noLine.map((pl) => `<li><span class="pts">0</span><span class="txt reason">No line</span><span class="sub"><b>${esc(displayName(pl))}</b></span></li>`).join("");
+        renderStandings($("standings"), true);
+        const last = S.round + 1 >= ROUND_PAIRS.length;
+        $("next").hidden = !isHost();
+        $("next").textContent = last ? "See who won" : "Next round";
+        $("next-wait").hidden = isHost();
+        $("next-wait").textContent = last ? `${hostName()} will show the final scores.` : `${hostName()} starts the next round.`;
+        show("round");
+      }
+      function renderStandings(el, withGain) {
+        const sorted = [...S.players].sort((x, y) => y.score - x.score);
+        const top = sorted[0].score;
+        el.innerHTML = sorted
+          .map((pl) => `<li class="${pl.score === top && top > 0 ? "lead" : ""}"><span class="pos">${1 + sorted.filter((o) => o.score > pl.score).length}</span><span>${esc(displayName(pl))}</span><span class="gain">${withGain && pl.gain ? `+${pl.gain}` : ""}</span><span class="total">${pl.score}</span></li>`)
+          .join("");
+      }
+      $("next").addEventListener("click", () => (S.round + 1 >= ROUND_PAIRS.length ? renderFinal() : startRound(S.round + 1)));
+
+      /* Final */
+      function renderFinal() {
+        clearTimers();
+        const top = leaders(S.players, (x) => x.score);
+        const names = top.map(displayName).sort((x, y) => (y === "You") - (x === "You"));
+        $("final-h").textContent = top.length > 1 ? `${names.join(" and ")} tie` : `${names[0]} ${names[0] === "You" ? "win" : "wins"}`;
+        renderStandings($("final-standings"), false);
+        const b = S.best || { text: "I have waited my whole life for this moment", r: DT.fixture(pairByKey("vow-villain"), "I have waited my whole life for this moment"), key: "vow-villain", who: "Priya" };
+        const bp = pairByKey(b.key);
+        $("best-card").dataset.side = "a";
+        fillCard($("best-card"), bp, b.text, b.r);
+        $("best-cap").textContent = `${b.who}, ${DT.groupPoints(b.r)} points. Tap to flip.`;
+        $("again").hidden = !isHost();
+        show("final");
+      }
+      $("again").addEventListener("click", () => { S.players.forEach((p) => (p.score = 0)); S.best = null; startRound(0); });
+      $("leave").addEventListener("click", renderHome);
+
+      /* Line of the game: the highest scoring line so far; earlier lines win ties. */
+      function trackBest() {
+        for (const [id, s] of Object.entries(S.subs)) {
+          if (s.r && (!S.best || s.pts > DT.groupPoints(S.best.r))) S.best = { text: s.text, r: s.r, key: pair().key, who: displayName(S.players.find((x) => x.id === id)) };
+        }
+      }
+
+      /* How to play */
+      let exampleTimer = null;
+      function openHowto() {
+        const p = pairByKey("vow-villain");
+        const card = $("example");
+        card.dataset.side = "a";
+        fillCard(card, p, "I will love you until death takes me", DT.fixture(p, "I will love you until death takes me"));
+        const flip = card.onclick;
+        card.onclick = () => { clearInterval(exampleTimer); flip(); };
+        $("howto").showModal();
+        clearInterval(exampleTimer);
+        if (!reduced() && !S.instant) exampleTimer = setInterval(flip, 2200);
+      }
+      $("howto").addEventListener("close", () => clearInterval(exampleTimer));
+      $("howto-close").addEventListener("click", () => $("howto").close());
+      $("howto-ok").addEventListener("click", () => $("howto").close());
+      $("help").addEventListener("click", openHowto);
+      $("home-howto").addEventListener("click", openHowto);
+      $("go-start").addEventListener("click", () => renderName("start"));
+      $("go-join").addEventListener("click", () => renderName("join"));
+      $("to-home").addEventListener("click", renderHome);
+
+      /* QA states: seed a table and render instantly. */
+      function seedTable(hostId = "me") {
+        S.hostId = hostId;
+        S.name = S.name || "Ada";
+        S.players = [{ id: "me", name: S.name, score: 0 }, ...BOTS.map((b) => ({ id: b.id, name: b.name, score: 0 }))];
+        S.pending = [];
+      }
+      function seedSubs(round, mine) {
+        S.round = round;
+        S.subs = {};
+        for (const b of BOTS) { const text = BOT_LINES[pair().key][b.id]; const r = DT.fixture(pair(), text); S.subs[b.id] = { text, r, pts: DT.groupPoints(r) }; }
+        if (mine) { const r = DT.fixture(pair(), mine); S.subs.me = { text: mine, r, pts: DT.groupPoints(r) }; }
+      }
+      function seedReveal(round, mine, pickId, stepTo) {
+        seedSubs(round, mine);
+        const ranked = Object.entries(S.subs).sort(([, x], [, y]) => x.pts - y.pts || Math.min(x.r.a, x.r.b) - Math.min(y.r.a, y.r.b));
+        S.order = ranked.map(([id]) => id);
+        S.revealIdx = S.order.indexOf(pickId);
+        show("reveal");
+        buildStage(pickId, S.revealIdx, S.order.length);
+        for (const k of stepTo) step(k);
+      }
+      /* Replays earlier rounds with fixed lines so standings look like a real game. */
+      const MY_LINES = ["I will love you until death takes me", "Fresh from the dark, served before midnight", "Easy now, I've got you all the way down"];
+      function seedGame(round, mine) {
+        S.best = null;
+        for (let r = 0; r <= round; r++) {
+          seedSubs(r, r === round ? mine : MY_LINES[r]);
+          for (const p of S.players) { p.gain = S.subs[p.id] ? S.subs[p.id].pts : 0; p.score += p.gain; }
+          trackBest();
+        }
+        S.order = Object.entries(S.subs).sort(([, x], [, y]) => x.pts - y.pts).map(([id]) => id);
+      }
+      function seedRound(round, mine) {
+        seedGame(round, mine);
+        renderRound();
+      }
+      function applyHash() {
+        clearTimers();
+        const h = new URLSearchParams(location.hash.slice(1));
+        S.failNext = h.get("fail") === "1";
+        const state = h.get("state");
+        document.documentElement.style.removeProperty("--wipe");
+        S.instant = !!state;
+        if (!state) return renderHome();
+        document.documentElement.style.setProperty("--wipe", "1ms");
+        const MINE = "I will love you until death takes me";
+        const all = ["verdictA", "wipe", "verdictB", "score"];
+        const states = {
+          home: renderHome,
+          howto: () => { renderHome(); openHowto(); },
+          start: () => renderName("start", { name: "" }),
+          join: () => renderName("join", { name: "Ada", code: "KX" }),
+          "join-error": () => renderName("join", { name: "Ada", code: "KXRA", error: "No game with that code. Check it and try again." }),
+          lobby: () => { S.name = S.name || "Ada"; enterLobby("me", 2); },
+          "lobby-guest": () => { S.name = S.name || "Ada"; enterLobby("priya", 2); },
+          write: () => { seedTable(); startRound(0); },
+          "write-typing": () => { seedTable(); startRound(0); S.subs = {}; const b = BOTS[0]; S.subs[b.id] = { text: BOT_LINES["vow-villain"][b.id], r: DT.fixture(pair(), BOT_LINES["vow-villain"][b.id]), pts: 6 }; renderWrite({ text: "I will stand beside you until the very" }); },
+          "write-over": () => { seedTable(); startRound(0); renderWrite({ text: "I will stand beside you until the very last light in this world goes out" }); },
+          "write-locked": () => { seedTable(); startRound(0); S.subs.me = { text: MINE, r: DT.fixture(pair(), MINE), pts: 5 }; const b = BOTS[0]; S.subs[b.id] = { text: BOT_LINES["vow-villain"][b.id], r: DT.fixture(pair(), BOT_LINES["vow-villain"][b.id]), pts: 6 }; renderStatus(); },
+          "write-last": () => { seedTable(); startRound(0); seedSubs(0, null); S.lastDeadline = Date.now() + 24000; renderWrite({ text: "You were always going to end up" }); },
+          "write-error": () => { seedTable(); startRound(0); renderWrite({ text: "You were always going to end up here", error: true }); },
+          "reveal-a": () => { seedTable(); seedReveal(0, MINE, "me", ["verdictA"]); },
+          "reveal-b": () => { seedTable(); seedReveal(0, MINE, "me", ["verdictA", "wipe", "verdictB"]); },
+          "reveal-scored": () => { seedTable(); seedReveal(0, MINE, "me", all); },
+          "reveal-rejected": () => { seedTable(); seedReveal(2, MY_LINES[2], "priya", all); },
+          "reveal-stitched": () => { seedTable(); seedReveal(0, MINE, "jo", all); },
+          "reveal-perfect": () => { seedTable(); seedReveal(0, MINE, "priya", all); },
+          round: () => { seedTable(); seedRound(0, MINE); },
+          "round-tie": () => { seedTable(); seedRound(1, MY_LINES[1]); },
+          "round-last": () => { seedTable("priya"); seedRound(2, MY_LINES[2]); },
+          final: () => { seedTable(); seedGame(2, MY_LINES[2]); renderFinal(); },
+        };
+        (states[state] || states.home)();
+      }
+      window.addEventListener("hashchange", applyHash);
+      applyHash();
+    </script>
+  </body>
+</html>

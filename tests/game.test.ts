@@ -1,21 +1,21 @@
 /// <reference types="vite/client" />
 
-import { convexTest } from "convex-test";
+import { convexTest, type TestConvex } from "convex-test";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../convex/_generated/api";
+import { api, internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import schema from "../convex/schema";
+import { ADVANCE_GRACE_MS, LAST_PLAYER_MS } from "../convex/rules";
+import { revealEndsAt } from "../lib/reveal";
 
 const modules = import.meta.glob("../convex/**/*.ts");
 
+type Levels = { a: number; b: number; coherence: number };
+const FITS_BOTH: Levels = { a: 3, b: 3, coherence: 3 };
+
 /** Documented TypeSafe response shape, level index per question. */
-function judgeResponse(levels: {
-  a: number;
-  b: number;
-  coherence: number;
-  specificity: number;
-}) {
+function judgeResponse(levels: Levels) {
   const scoreAnswer = (level: number) => ({
     type: "score" as const,
     score: level,
@@ -26,28 +26,26 @@ function judgeResponse(levels: {
   return {
     model: "jev-test",
     answers: {
-      plausibility_a: scoreAnswer(levels.a),
-      plausibility_b: scoreAnswer(levels.b),
+      appropriate_a: scoreAnswer(levels.a),
+      appropriate_b: scoreAnswer(levels.b),
       coherence: scoreAnswer(levels.coherence),
-      specificity: scoreAnswer(levels.specificity),
     },
   };
 }
 
-function installJudge(levels: {
-  a: number;
-  b: number;
-  coherence: number;
-  specificity: number;
-}) {
+/** Jev stand-in: levels chosen per sentence, from the request body. */
+function installJudge(levelsFor: (sentence: string) => Levels) {
   vi.stubEnv("JEV_DECISIONS_URL", "https://judge.test/decisions");
   vi.stubEnv("JEV_MODEL", "typesafe/jev-1.13");
   vi.stubEnv("OPENROUTER_API_KEY", "test-key-not-real");
-  const fetchMock = vi.fn(async () => {
-    return new Response(JSON.stringify(judgeResponse(levels)), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+  const fetchMock = vi.fn(async (_url: unknown, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as {
+      state: { sentence: string };
+    };
+    return new Response(
+      JSON.stringify(judgeResponse(levelsFor(body.state.sentence))),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -55,10 +53,10 @@ function installJudge(levels: {
 
 async function fixture(
   count = 2,
-  levels = { a: 3, b: 3, coherence: 3, specificity: 2 },
+  levelsFor: (sentence: string) => Levels = () => FITS_BOTH,
 ) {
   vi.stubEnv("PRODUCT_ENVIRONMENT", "test");
-  installJudge(levels);
+  installJudge(levelsFor);
   const t = convexTest(schema, modules);
   const clients = Array.from({ length: count }, (_, index) =>
     t.withIdentity({ subject: `player-${index}`, issuer: "double-take-test" }),
@@ -80,15 +78,42 @@ async function fixture(
     roomId: room.roomId,
     requestId: "first-match",
   });
-  return { t, clients, host, room, playerIds, gameId };
+  /** Run the judgments `submit` scheduled; the 30 s last-player clock is not due yet. */
+  const settle = async () => {
+    vi.advanceTimersByTime(1);
+    await t.finishInProgressScheduledFunctions();
+  };
+  const endReveal = async (extraMs = 0) => {
+    await t.run(async (ctx) => {
+      const game = (await ctx.db.get(gameId))!;
+      const round = (await ctx.db
+        .query("rounds")
+        .withIndex("by_game_round", (q) =>
+          q.eq("gameId", gameId).eq("round", game.round),
+        )
+        .unique())!;
+      const ended = revealEndsAt(0, round.revealOrder?.length ?? 0) + extraMs;
+      await ctx.db.patch(round._id, { revealStartedAt: Date.now() - ended });
+    });
+  };
+  return { t, clients, host, room, playerIds, gameId, settle, endReveal };
 }
 
-describe("double take game", () => {
+async function rateLimitCount(t: TestConvex<typeof schema>) {
+  return t.run(async (ctx) => {
+    const rows = await ctx.db.query("rateLimits").collect();
+    return rows[0]?.count ?? 0;
+  });
+}
+
+describe("double take group game", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
@@ -102,185 +127,234 @@ describe("double take game", () => {
     expect(again).toBe(gameId);
   });
 
-  it("records the match funnel without retaining player sentences in events", async () => {
-    const { t, clients, host, gameId } = await fixture();
+  it("judges each line when it is locked in and reveals once everyone is judged", async () => {
+    const { clients, host, gameId, settle } = await fixture(3, (sentence) =>
+      sentence.startsWith("Perfect")
+        ? FITS_BOTH
+        : sentence.startsWith("Lopsided")
+          ? { a: 3, b: 1, coherence: 3 }
+          : { a: 2, b: 2, coherence: 3 },
+    );
     await clients[0]!.mutation(api.game.submit, {
       gameId,
-      text: "I never said it was yours",
+      text: "Perfect in both of these worlds",
     });
     await clients[1]!.mutation(api.game.submit, {
       gameId,
-      text: "That changes everything",
+      text: "Lopsided but still standing here",
     });
-    await host.action(api.game.judge, { gameId });
-    await host.mutation(api.game.beginReveal, { gameId });
-
-    const events = await t.run(async (ctx) =>
-      ctx.db.query("productEvents").collect(),
-    );
-    expect(events.map((event) => event.eventName)).toEqual([
-      "round_start",
-      "submission",
-      "submission",
-      "judgment",
-      "judgment",
-      "round_complete",
-    ]);
-    expect(new Set(events.map((event) => event.eventId)).size).toBe(
-      events.length,
-    );
-    expect(JSON.stringify(events)).not.toMatch(
-      /I never said|That changes everything/,
-    );
+    await settle();
+    let view = await host.query(api.game.view, { gameId });
+    expect(view.phase).toBe("writing");
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    await clients[2]!.mutation(api.game.submit, {
+      gameId,
+      text: "Balanced and fair for everyone",
+    });
+    await settle();
+    view = await host.query(api.game.view, { gameId });
+    expect(view.phase).toBe("reveal");
+    // Lowest first; 3 + 1 and 2 + 2 tie on points, the balanced line ranks higher.
     expect(
-      events.every(
-        (event) => event.environment === "test" && event.actorId === null,
-      ),
-    ).toBe(true);
+      view.reveal!.lines.map((line) => [line.name, line.points, line.weaker]),
+    ).toEqual([
+      ["Player 1", 4, 1],
+      ["Player 2", 4, 2],
+      ["Host", 6, 3],
+    ]);
+    expect(view.players.map((player) => player.score)).toEqual([6, 4, 4]);
+    expect(JSON.stringify(view)).not.toMatch(/confidence|rubric|jev-test/i);
   });
 
-  it("rejects long, empty, and stitched-style inputs at validation, before judging", async () => {
-    const { clients, gameId } = await fixture();
+  it("scores nothing for stitched or one-world lines, and little for filler", async () => {
+    const { clients, host, gameId, settle } = await fixture(3, (sentence) =>
+      sentence.startsWith("Stitched")
+        ? { a: 3, b: 3, coherence: 0 }
+        : sentence.startsWith("Filler")
+          ? { a: 1, b: 1, coherence: 3 }
+          : { a: 3, b: 0, coherence: 3 },
+    );
+    await clients[0]!.mutation(api.game.submit, {
+      gameId,
+      text: "Stitched halves, and another half",
+    });
+    await clients[1]!.mutation(api.game.submit, {
+      gameId,
+      text: "Filler words for any place",
+    });
+    await clients[2]!.mutation(api.game.submit, {
+      gameId,
+      text: "Only the first world believes this",
+    });
+    await settle();
+    const view = await host.query(api.game.view, { gameId });
+    const scoreBy = Object.fromEntries(
+      view.reveal!.lines.map((line) => [line.name, [line.points, line.zero]]),
+    );
+    expect(scoreBy).toEqual({
+      Host: [0, "stitched"],
+      "Player 1": [2, null],
+      "Player 2": [0, "rejected"],
+    });
+    expect(view.players.map((player) => player.score)).toEqual([0, 2, 0]);
+  });
+
+  it("keeps other players' lines secret while the table writes", async () => {
+    const { clients, gameId, settle } = await fixture();
+    await clients[0]!.mutation(api.game.submit, {
+      gameId,
+      text: "I will love you until death takes me",
+    });
+    await settle();
+    const view = await clients[1]!.query(api.game.view, { gameId });
+    expect(view.phase).toBe("writing");
+    expect(view.reveal).toBeNull();
+    expect(JSON.stringify(view)).not.toContain("death takes me");
+    expect(view.players.map((player) => player.locked)).toEqual([true, false]);
+    expect(view.me.line).toBeNull();
+    const mine = await clients[0]!.query(api.game.view, { gameId });
+    // Your own line reads as locked in, never as its judgment, before the reveal.
+    expect(mine.me.line).toEqual({
+      text: "I will love you until death takes me",
+      status: "judged",
+    });
+  });
+
+  it("accepts one line per round and refuses a second without charging", async () => {
+    const { t, clients, gameId } = await fixture();
+    const first = await clients[0]!.mutation(api.game.submit, {
+      gameId,
+      text: "The only line I get to write",
+    });
+    expect(first).toEqual({ ok: true });
+    const charged = await rateLimitCount(t);
+    const second = await clients[0]!.mutation(api.game.submit, {
+      gameId,
+      text: "A second thought about it",
+    });
+    expect(second).toEqual({ ok: false, code: "ALREADY_LOCKED" });
+    expect(await rateLimitCount(t)).toBe(charged);
+  });
+
+  it("rejects invalid lines at validation, before any judging", async () => {
+    const { clients, gameId, settle } = await fixture();
     const long = await clients[0]!.mutation(api.game.submit, {
       gameId,
       text: "one two three four five six seven eight nine ten eleven twelve thirteen",
     });
-    expect(long).toMatchObject({ ok: false, code: "TOO_MANY_WORDS" });
+    expect(long).toEqual({ ok: false, code: "TOO_MANY_WORDS" });
     const empty = await clients[0]!.mutation(api.game.submit, {
       gameId,
       text: "   ",
     });
-    expect(empty.ok).toBe(false);
-    const fetchMock = vi.mocked(fetch);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(empty).toEqual({ ok: false, code: "SENTENCE_EMPTY" });
+    await settle();
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 
-  it("keeps other players' text secret during the writing phase", async () => {
-    const { clients, gameId } = await fixture();
-    await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "I will love you until death takes me",
-    });
-    const view = await clients[1]!.query(api.game.view, { gameId });
-    expect(view.phase).toBe("writing");
-    expect(view.reveal).toBeNull();
-    const serialized = JSON.stringify(view);
-    expect(serialized).not.toContain("death takes me");
-    expect(view.players.find((p) => p.seatIndex === 0)?.submitted).toBe(true);
-    expect(view.me.submission).toBeNull();
-  });
-
-  it("judges every pending submission once and applies the weaker reading", async () => {
-    const { clients, host, gameId } = await fixture(2, {
-      a: 0,
-      b: 3,
-      coherence: 2,
-      specificity: 2,
-    });
-    await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "You will never escape me now",
-    });
-    await clients[1]!.mutation(api.game.submit, {
-      gameId,
-      text: "I will love you until death takes me",
-    });
-    const judged = await host.action(api.game.judge, { gameId });
-    expect(judged).toMatchObject({ ok: true, judged: 2, failed: 0 });
-    const reveal = await host.mutation(api.game.beginReveal, { gameId });
-    expect(reveal.ok).toBe(true);
-    const view = await host.query(api.game.view, { gameId });
-    expect(view.phase).toBe("reveal");
-    expect(view.reveal?.submissions).toHaveLength(2);
-    for (const item of view.reveal!.submissions) {
-      expect(item.adjudication?.points).toBe(0);
-      expect(item.adjudication?.note).toBe(
-        "One reading collapses in its context.",
-      );
-      expect(JSON.stringify(item.adjudication)).not.toMatch(
-        /confidence|rubric|model|gate/i,
-      );
-    }
-    const scored = view.players.find((p) => p.seatIndex === 0);
-    expect(scored?.score).toBe(0);
-  });
-
-  it("retains the first adjudication for a duplicate sentence (no reroll)", async () => {
-    const { clients, host, t, gameId } = await fixture(2, {
-      a: 3,
-      b: 3,
-      coherence: 3,
-      specificity: 2,
-    });
+  it("reuses the retained judgment for a repeated sentence and refunds its charge", async () => {
+    const { t, clients, gameId, settle } = await fixture();
     const sentence = "I will love you until death takes me";
     await clients[0]!.mutation(api.game.submit, { gameId, text: sentence });
+    await settle();
     await clients[1]!.mutation(api.game.submit, {
       gameId,
       text: sentence.toUpperCase(),
     });
-    const first = await host.action(api.game.judge, { gameId });
-    expect(first.judged).toBe(2);
+    await settle();
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
     const adjudications = await t.run(async (ctx) =>
       ctx.db.query("adjudications").collect(),
     );
     expect(adjudications).toHaveLength(1);
-    // A second judge pass over the same retained sentence must not create a new row.
-    const calls = vi.mocked(fetch).mock.calls.length;
-    await host.mutation(api.game.beginReveal, { gameId });
-    expect(vi.mocked(fetch).mock.calls.length).toBe(calls);
+    const charges = await t.run(async (ctx) =>
+      ctx.db.query("rateLimits").collect(),
+    );
+    expect(charges.map((row) => row.count).sort()).toEqual([0, 1]);
   });
 
-  it("scores the good line 6 and lets the host advance through rounds to finish", async () => {
-    const { clients, host, t, gameId } = await fixture();
+  it("unlocks a line Jev could not score, refunds it, and judges the retry", async () => {
+    const { t, clients, gameId, settle } = await fixture();
+    vi.stubGlobal(
+      "fetch",
+      // A refusal fails on the first attempt; overloads retry with backoff in judge.test.ts.
+      vi.fn(async () => new Response("refused", { status: 401 })),
+    );
     await clients[0]!.mutation(api.game.submit, {
       gameId,
-      text: "Tonight we feast on what remains",
+      text: "A line that works in both worlds",
     });
-    await clients[1]!.mutation(api.game.submit, {
+    await settle();
+    let view = await clients[0]!.query(api.game.view, { gameId });
+    expect(view.me.line).toEqual({
+      text: "A line that works in both worlds",
+      status: "failed",
+    });
+    expect(view.players[0]!.locked).toBe(false);
+    expect(await rateLimitCount(t)).toBe(0);
+    expect(
+      await t.run(async (ctx) => ctx.db.query("adjudications").collect()),
+    ).toHaveLength(0);
+    installJudge(() => FITS_BOTH);
+    const retry = await clients[0]!.mutation(api.game.submit, {
       gameId,
-      text: "I will love you until death takes me",
+      text: "A line that works in both worlds",
     });
-    await host.action(api.game.judge, { gameId });
-    await host.mutation(api.game.beginReveal, { gameId });
-    let view = await host.query(api.game.view, { gameId });
-    expect(view.players.every((p) => p.score === 6)).toBe(true);
-    for (let round = 1; round <= 3; round += 1) {
-      const advanced = await host.mutation(api.game.advance, { gameId });
-      if (round < 3) {
-        expect(advanced).toMatchObject({ ok: true, finished: false });
-        view = await host.query(api.game.view, { gameId });
-        expect(view.phase).toBe("writing");
-        expect(view.round).toBe(round + 1);
-        await clients[0]!.mutation(api.game.submit, {
-          gameId,
-          text: `Round ${round} words that hold twice`,
-        });
-        await clients[1]!.mutation(api.game.submit, {
-          gameId,
-          text: `Round ${round} another line for both`,
-        });
-        await host.action(api.game.judge, { gameId });
-        await host.mutation(api.game.beginReveal, { gameId });
-      } else {
-        expect(advanced).toMatchObject({ ok: true, finished: true });
-      }
-    }
-    view = await host.query(api.game.view, { gameId });
-    expect(view.phase).toBe("finished");
-    const matchStatus = await t.run(async (ctx) => {
-      const matches = await ctx.db.query("matches").collect();
-      return matches[0]?.status ?? null;
-    });
-    expect(matchStatus).toBe("completed");
+    expect(retry).toEqual({ ok: true });
+    await settle();
+    view = await clients[0]!.query(api.game.view, { gameId });
+    expect(view.me.line?.status).toBe("judged");
   });
 
-  it("blocks non-participants and non-hosts from advancing", async () => {
-    const { clients, host, t, gameId } = await fixture(2);
-    const outsider = t.withIdentity({
-      subject: "outsider",
-      issuer: "double-take-test",
+  it("gives the last player a clock, then reveals without them", async () => {
+    const { t, clients, host, gameId, settle } = await fixture(3);
+    const before = Date.now();
+    await clients[0]!.mutation(api.game.submit, {
+      gameId,
+      text: "First line in for the round",
     });
-    await expect(outsider.query(api.game.view, { gameId })).rejects.toThrow();
+    let view = await host.query(api.game.view, { gameId });
+    expect(view.lastDeadline).toBeNull();
+    await clients[1]!.mutation(api.game.submit, {
+      gameId,
+      text: "Second line in for the round",
+    });
+    await settle();
+    view = await host.query(api.game.view, { gameId });
+    expect(view.phase).toBe("writing");
+    expect(view.lastDeadline).toBeGreaterThanOrEqual(before + LAST_PLAYER_MS);
+    expect(view.lastDeadline).toBeLessThanOrEqual(Date.now() + LAST_PLAYER_MS);
+    await t.run(async (ctx) => {
+      const round = (await ctx.db.query("rounds").collect())[0]!;
+      await ctx.db.patch(round._id, { lastDeadline: Date.now() - 1 });
+    });
+    const late = await clients[2]!.mutation(api.game.submit, {
+      gameId,
+      text: "Too late for this round",
+    });
+    expect(late).toEqual({ ok: false, code: "WRONG_PHASE" });
+    await t.mutation(internal.game.closeWriting, { gameId, round: 1 });
+    view = await host.query(api.game.view, { gameId });
+    expect(view.phase).toBe("reveal");
+    expect(view.reveal!.lines.map((line) => line.name).sort()).toEqual([
+      "Host",
+      "Player 1",
+    ]);
+    expect(view.players[2]!.roundPoints).toBe(0);
+  });
+
+  it("starts the clock in a two player game once one line is in", async () => {
+    const { clients, host, gameId } = await fixture(2);
+    await clients[1]!.mutation(api.game.submit, {
+      gameId,
+      text: "One of two lines is in",
+    });
+    const view = await host.query(api.game.view, { gameId });
+    expect(view.lastDeadline).not.toBeNull();
+  });
+
+  it("holds advance until the reveal ends, then lets the host move on", async () => {
+    const { clients, host, gameId, settle, endReveal } = await fixture();
     await clients[0]!.mutation(api.game.submit, {
       gameId,
       text: "A line that works in both worlds",
@@ -289,293 +363,160 @@ describe("double take game", () => {
       gameId,
       text: "Another line for two contexts",
     });
-    await host.action(api.game.judge, { gameId });
-    await host.mutation(api.game.beginReveal, { gameId });
-    const refused = await clients[1]!.mutation(api.game.advance, { gameId });
-    expect(refused).toMatchObject({ ok: false, code: "HOST_REQUIRED" });
-  });
-
-  it("reports a judge outage honestly and leaves submissions retryable", async () => {
-    const { clients, host, t, gameId } = await fixture();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("overloaded", { status: 529 })),
-    );
-    await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "A line that works in both worlds",
-    });
-    const failed = await host.action(api.game.judge, { gameId });
-    expect(failed.ok).toBe(false);
-    expect(failed.failed).toBe(1);
-    expect(failed.code).toBe("JUDGE_HTTP_529");
-    const submissions = await t.run(async (ctx) =>
-      ctx.db.query("submissions").collect(),
-    );
-    expect(submissions[0]?.status).toBe("pending");
-    const adjudications = await t.run(async (ctx) =>
-      ctx.db.query("adjudications").collect(),
-    );
-    expect(adjudications).toHaveLength(0);
-  });
-
-  it("accepts revisions up to the cap and refuses the next without charging", async () => {
-    const { clients, t, gameId } = await fixture();
-    for (const text of [
-      "First draft line",
-      "Second draft line",
-      "Third draft line",
-    ]) {
-      const accepted = await clients[0]!.mutation(api.game.submit, {
-        gameId,
-        text,
-      });
-      expect(accepted).toMatchObject({ ok: true });
-    }
-    const charged = await t.run(async (ctx) => {
-      const rows = await ctx.db.query("rateLimits").collect();
-      return rows[0]?.count ?? 0;
-    });
-    const refused = await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "Fourth draft line",
-    });
-    expect(refused).toMatchObject({ ok: false, code: "REVISION_LIMIT" });
-    const afterRefusal = await t.run(async (ctx) => {
-      const rows = await ctx.db.query("rateLimits").collect();
-      return rows[0]?.count ?? 0;
-    });
-    expect(afterRefusal).toBe(charged);
-    const submissions = await t.run(async (ctx) =>
-      ctx.db.query("submissions").collect(),
-    );
-    expect(submissions[0]?.revision).toBe(3);
-    expect(submissions[0]?.text).toBe("Third draft line");
-  });
-
-  it("drops an in-flight judgment when the line was revised, then judges the revision", async () => {
-    const { clients, host, t, gameId } = await fixture(2, {
-      a: 3,
-      b: 3,
-      coherence: 3,
-      specificity: 2,
-    });
-    await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "First draft of the line",
-    });
-    let revised = false;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        if (!revised) {
-          revised = true;
-          await clients[0]!.mutation(api.game.submit, {
-            gameId,
-            text: "Second draft of the line",
-          });
-        }
-        return new Response(
-          JSON.stringify(
-            judgeResponse({ a: 3, b: 3, coherence: 3, specificity: 2 }),
-          ),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          },
-        );
-      }),
-    );
-    const stale = await host.action(api.game.judge, { gameId });
-    expect(stale.judged).toBe(0);
-    let submissions = await t.run(async (ctx) =>
-      ctx.db.query("submissions").collect(),
-    );
-    expect(submissions[0]?.status).toBe("pending");
-    expect(submissions[0]?.revision).toBe(2);
-    const fresh = await host.action(api.game.judge, { gameId });
-    expect(fresh).toMatchObject({ ok: true, judged: 1 });
-    submissions = await t.run(async (ctx) =>
-      ctx.db.query("submissions").collect(),
-    );
-    expect(submissions[0]?.status).toBe("judged");
-    expect(submissions[0]?.normalized).toBe("second draft of the line");
-  });
-
-  it("refuses judge calls from callers who are not seated at the table", async () => {
-    const { t, clients, gameId } = await fixture();
-    await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "A line that works in both worlds",
-    });
-    const anonymous = await t.action(api.game.judge, { gameId });
-    expect(anonymous).toMatchObject({ ok: false, code: "NOT_AUTHORIZED" });
-    const outsider = t.withIdentity({
-      subject: "outsider-judge",
-      issuer: "double-take-test",
-    });
-    await outsider.mutation(api.rooms.createRoom, { displayName: "Outsider" });
-    const refused = await outsider.action(api.game.judge, { gameId });
-    expect(refused).toMatchObject({
+    await settle();
+    expect(await host.mutation(api.game.advance, { gameId })).toEqual({
       ok: false,
-      code: "MATCH_PARTICIPANT_REQUIRED",
+      code: "REVEAL_RUNNING",
     });
-    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    await endReveal();
+    expect(await clients[1]!.mutation(api.game.advance, { gameId })).toEqual({
+      ok: false,
+      code: "HOST_REQUIRED",
+    });
+    const first = await host.query(api.game.view, { gameId });
+    expect(await host.mutation(api.game.advance, { gameId })).toEqual({
+      ok: true,
+      finished: false,
+    });
+    const next = await host.query(api.game.view, { gameId });
+    expect(next).toMatchObject({ phase: "writing", round: 2, reveal: null });
+    expect(next.pair.key).not.toBe(first.pair.key);
+    expect(next.players.every((player) => player.roundPoints === 0)).toBe(true);
+    expect(next.players.every((player) => player.score === 6)).toBe(true);
   });
 
-  it("refunds the caller's judge charge when the judge is down", async () => {
-    const { clients, host, t, gameId } = await fixture();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("overloaded", { status: 529 })),
+  it("lets any seated player advance once the host has been gone past the grace", async () => {
+    const { clients, gameId, settle, endReveal } = await fixture();
+    for (const [index, text] of [
+      "Line from the host",
+      "Line from a guest",
+    ].entries())
+      await clients[index]!.mutation(api.game.submit, { gameId, text });
+    await settle();
+    await endReveal(ADVANCE_GRACE_MS);
+    expect(await clients[1]!.mutation(api.game.advance, { gameId })).toEqual({
+      ok: true,
+      finished: false,
+    });
+  });
+
+  it("finishes after three rounds with the line of the game and a completed match", async () => {
+    const { t, clients, host, room, gameId, settle, endReveal } = await fixture(
+      2,
+      (sentence) =>
+        sentence.includes("best") ? FITS_BOTH : { a: 2, b: 1, coherence: 3 },
     );
-    await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "A line that works in both worlds",
-    });
-    const before = await t.run(async (ctx) => {
-      const rows = await ctx.db.query("rateLimits").collect();
-      return rows[0]?.count ?? 0;
-    });
-    const failed = await host.action(api.game.judge, { gameId });
-    expect(failed.ok).toBe(false);
-    const after = await t.run(async (ctx) => {
-      const rows = await ctx.db.query("rateLimits").collect();
-      return rows[0]?.count ?? 0;
-    });
-    expect(after).toBe(before);
-  });
-
-  it("lets the table reveal after the deadline even when a player never submits", async () => {
-    const { clients, host, t, gameId } = await fixture();
-    await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "A line that works in both worlds",
-    });
-    await host.action(api.game.judge, { gameId });
-    const early = await host.mutation(api.game.beginReveal, { gameId });
-    expect(early).toMatchObject({ ok: false, code: "NOT_READY" });
-    await t.run(async (ctx) => {
-      const rounds = await ctx.db.query("rounds").collect();
-      await ctx.db.patch(rounds[0]!._id, { deadline: Date.now() - 1 });
-    });
-    const late = await clients[1]!.mutation(api.game.beginReveal, { gameId });
-    expect(late.ok).toBe(true);
-    const view = await clients[1]!.query(api.game.view, { gameId });
-    expect(view.phase).toBe("reveal");
-    expect(
-      view.players.find((player) => player.seatIndex === 0)?.roundPoints,
-    ).toBe(6);
-  });
-
-  it("host force-reveal ends the round early and scores judged lines", async () => {
-    const { clients, host, gameId } = await fixture();
-    await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "A line that works in both worlds",
-    });
-    // The client ends the round early only after judging what was submitted.
-    const judged = await host.action(api.game.judge, { gameId });
-    expect(judged).toMatchObject({ ok: true });
-    const forced = await host.mutation(api.game.beginReveal, {
-      gameId,
-      force: true,
-    });
-    expect(forced.ok).toBe(true);
+    for (let round = 1; round <= 3; round += 1) {
+      await clients[0]!.mutation(api.game.submit, {
+        gameId,
+        text:
+          round === 2
+            ? "The best line of the whole game"
+            : `Host line ${round}`,
+      });
+      await clients[1]!.mutation(api.game.submit, {
+        gameId,
+        text: `Guest line number ${round}`,
+      });
+      await settle();
+      await endReveal();
+      const advanced = await host.mutation(api.game.advance, { gameId });
+      expect(advanced).toEqual({ ok: true, finished: round === 3 });
+    }
     const view = await host.query(api.game.view, { gameId });
-    expect(view.phase).toBe("reveal");
-    expect(
-      view.players.find((player) => player.seatIndex === 0)?.roundPoints,
-    ).toBe(6);
-    // The no-show player is revealed without a score, never a fake one.
-    expect(
-      view.players.find((player) => player.seatIndex === 1)?.roundPoints ?? 0,
-    ).toBe(0);
+    expect(view.phase).toBe("finished");
+    expect(view.players.map((player) => player.score)).toEqual([12, 9]);
+    expect(view.bestLine).toMatchObject({
+      text: "The best line of the whole game",
+      name: "Host",
+      points: 6,
+    });
+    const status = await t.run(async (ctx) => {
+      const matches = await ctx.db.query("matches").collect();
+      return matches[0]?.status ?? null;
+    });
+    expect(status).toBe("completed");
+    // The room keeps the final scores instead of dropping to the lobby.
+    const brief = await host.query(api.game.forRoom, { roomId: room.roomId });
+    expect(brief).toMatchObject({ gameId, phase: "finished" });
   });
 
-  it("refuses anonymous solo judge calls and refunds solo outage passes", async () => {
-    vi.stubEnv("PRODUCT_ENVIRONMENT", "test");
-    installJudge({ a: 3, b: 3, coherence: 3, specificity: 2 });
-    const t = convexTest(schema, modules);
-    const sessionId = "123e4567-e89b-42d3-a456-426614174000";
-    const anonymous = await t.action(api.solo.judge, {
-      sentence: "A line that works in both worlds",
-      pairKey: "vow-villain",
-      sessionId,
-      roundIndex: 1,
+  it("records the round funnel without retaining player lines in events", async () => {
+    const { t, clients, gameId, settle } = await fixture();
+    await clients[0]!.mutation(api.game.submit, {
+      gameId,
+      text: "I never said it was yours",
     });
-    expect(anonymous).toMatchObject({ ok: false, code: "NOT_AUTHORIZED" });
-    const seated = t.withIdentity({
-      subject: "solo-player",
-      issuer: "double-take-test",
+    await clients[1]!.mutation(api.game.submit, {
+      gameId,
+      text: "That changes everything",
     });
-    const judged = await seated.action(api.solo.judge, {
-      sentence: "A line that works in both worlds",
-      pairKey: "vow-villain",
-      sessionId,
-      roundIndex: 1,
-    });
-    expect(judged.ok).toBe(true);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("overloaded", { status: 529 })),
+    await settle();
+    const events = await t.run(async (ctx) =>
+      ctx.db.query("productEvents").collect(),
     );
-    const failed = await seated.action(api.solo.judge, {
-      sentence: "Another line for two contexts",
-      pairKey: "vow-villain",
-      sessionId,
-      roundIndex: 2,
-    });
-    expect(failed.ok).toBe(false);
-    const rows = await t.run(async (ctx) =>
-      ctx.db.query("rateLimits").collect(),
+    expect(events.map((event) => event.eventName).sort()).toEqual(
+      [
+        "round_start",
+        "submission",
+        "submission",
+        "judgment",
+        "judgment",
+        "round_complete",
+      ].sort(),
     );
-    expect(rows[0]?.count ?? 0).toBe(1);
+    expect(new Set(events.map((event) => event.eventId)).size).toBe(
+      events.length,
+    );
+    expect(JSON.stringify(events)).not.toMatch(
+      /I never said|That changes everything/,
+    );
   });
 
-  it("keeps the final standings reachable after the match completes", async () => {
-    const { clients, host, room, gameId } = await fixture();
-    await playOutMatch({ clients, host, gameId });
-    // The platform completes the match in the same mutation that finishes the
-    // game; activeMatch is gone, but the room must not drop to the lobby.
+  it("lets only the host end a running game, returning the room to its lobby", async () => {
+    const { clients, host, room, gameId, settle } = await fixture();
+    await clients[0]!.mutation(api.game.submit, {
+      gameId,
+      text: "A line that works in both worlds",
+    });
+    expect(await clients[1]!.mutation(api.game.endGame, { gameId })).toEqual({
+      ok: false,
+      code: "HOST_REQUIRED",
+    });
+    expect(await host.mutation(api.game.endGame, { gameId })).toEqual({
+      ok: true,
+    });
     const state = await host.query(api.rooms.getRoomState, {
       roomId: room.roomId,
     });
     expect(state.activeMatch).toBeNull();
-    const brief = await host.query(api.game.forRoom, { roomId: room.roomId });
-    expect(brief).toMatchObject({ gameId, phase: "finished" });
-    const view = await host.query(api.game.view, { gameId });
-    expect(view.phase).toBe("finished");
-    expect(view.players).toHaveLength(2);
-    expect(view.players.every((player) => player.score >= 0)).toBe(true);
-    expect(view.reveal?.submissions).toHaveLength(2);
+    // A judgment landing after the end must not reopen the round.
+    await clients[1]!
+      .mutation(api.game.submit, {
+        gameId,
+        text: "Too late for this game",
+      })
+      .catch(() => undefined);
+    await settle();
+    expect((await host.query(api.game.view, { gameId })).phase).toBe("writing");
+    // The table can start a fresh game straight away.
+    const next = await host.mutation(api.game.start, {
+      roomId: room.roomId,
+      requestId: "second-match",
+    });
+    expect(next).not.toBe(gameId);
   });
 
-  it("lets a member who missed the match read the finished standings", async () => {
-    const { t, clients, host, room, gameId } = await fixture();
-    await playOutMatch({ clients, host, gameId });
-    const late = t.withIdentity({
-      subject: "late-joiner",
-      issuer: "double-take-test",
-    });
-    const joined = await late.mutation(api.rooms.joinRoom, {
-      code: room.code,
-      displayName: "Late",
-    });
-    expect(joined.ok).toBe(true);
-    const view = await late.query(api.game.view, { gameId });
-    expect(view.phase).toBe("finished");
-    expect(view.players).toHaveLength(2);
-    expect(view.me.submission).toBeNull();
-    const outsider = t.withIdentity({
-      subject: "standings-outsider",
-      issuer: "double-take-test",
-    });
-    await expect(outsider.query(api.game.view, { gameId })).rejects.toThrow();
+  it("tells members a closed room is gone instead of failing", async () => {
+    const { clients, host, room } = await fixture();
+    await host.mutation(api.rooms.closeRoom, { roomId: room.roomId });
+    expect(
+      await clients[1]!.query(api.game.forRoom, { roomId: room.roomId }),
+    ).toEqual({ gameId: null, phase: null, closed: true });
   });
 
-  it("seats a mid-match joiner as a spectator without exposing hidden text", async () => {
-    const { t, clients, host, room, gameId } = await fixture();
+  it("lets a mid-game joiner watch without a seat or hidden text, and keeps outsiders out", async () => {
+    const { t, clients, host, room, gameId, settle } = await fixture();
     await clients[0]!.mutation(api.game.submit, {
       gameId,
       text: "A line that works in both worlds",
@@ -589,62 +530,29 @@ describe("double take game", () => {
       displayName: "Mid",
     });
     expect(joined.ok).toBe(true);
-    const view = await late.query(api.game.view, { gameId });
-    expect(view.phase).toBe("writing");
-    expect(view.me.seated).toBe(false);
-    expect(view.me.submission).toBeNull();
-    expect(view.reveal).toBeNull();
-    expect(JSON.stringify(view)).not.toContain("both worlds");
-    // A spectator cannot spend or advance in a match they are not dealt into.
-    await expect(
-      late.mutation(api.game.submit, {
+    const watching = await late.query(api.game.view, { gameId });
+    expect(watching.me).toMatchObject({ seated: false, line: null });
+    expect(JSON.stringify(watching)).not.toContain("both worlds");
+    expect(
+      await late.mutation(api.game.submit, {
         gameId,
         text: "Spectator line for the round",
       }),
-    ).rejects.toThrow();
+    ).toEqual({ ok: false, code: "NOT_SEATED" });
     await expect(late.mutation(api.game.advance, { gameId })).rejects.toThrow();
-    // Outsiders without a seat at the table still learn nothing.
     const outsider = t.withIdentity({
-      subject: "mid-outsider",
+      subject: "outsider",
       issuer: "double-take-test",
     });
     await expect(outsider.query(api.game.view, { gameId })).rejects.toThrow();
-    // The round still flows for the seated players.
     await clients[1]!.mutation(api.game.submit, {
       gameId,
       text: "Another line for two contexts",
     });
-    await host.action(api.game.judge, { gameId });
-    const reveal = await host.mutation(api.game.beginReveal, { gameId });
-    expect(reveal.ok).toBe(true);
-    const spectate = await late.query(api.game.view, { gameId });
-    expect(spectate.phase).toBe("reveal");
-    expect(spectate.reveal?.submissions).toHaveLength(2);
+    await settle();
+    const revealed = await late.query(api.game.view, { gameId });
+    expect(revealed.phase).toBe("reveal");
+    expect(revealed.reveal!.lines).toHaveLength(2);
+    expect((await host.query(api.game.view, { gameId })).isHost).toBe(true);
   });
 });
-
-/** Play all three rounds so the match finishes and the platform completes it. */
-async function playOutMatch({
-  clients,
-  host,
-  gameId,
-}: {
-  clients: Awaited<ReturnType<typeof fixture>>["clients"];
-  host: Awaited<ReturnType<typeof fixture>>["host"];
-  gameId: Awaited<ReturnType<typeof fixture>>["gameId"];
-}) {
-  for (let round = 1; round <= 3; round += 1) {
-    await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: `Round ${round} words that hold twice`,
-    });
-    await clients[1]!.mutation(api.game.submit, {
-      gameId,
-      text: `Round ${round} another line for both`,
-    });
-    await host.action(api.game.judge, { gameId });
-    await host.mutation(api.game.beginReveal, { gameId });
-    const advanced = await host.mutation(api.game.advance, { gameId });
-    expect(advanced).toMatchObject({ ok: true, finished: round === 3 });
-  }
-}

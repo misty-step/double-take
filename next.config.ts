@@ -18,8 +18,24 @@ if (attribution) {
   clientEnv.NEXT_PUBLIC_APP_RELEASE = attribution.release;
 }
 
+/**
+ * Local play on phones: the browser reaches Convex at NEXT_PUBLIC_CONVEX_URL,
+ * which is this computer's LAN address. The same host must be allowed to load
+ * dev assets, or phones render the server HTML and never start.
+ */
+function localDevOrigins(): string[] {
+  const origins = ["127.0.0.1", "[::1]"];
+  try {
+    const host = new URL(process.env.NEXT_PUBLIC_CONVEX_URL ?? "").hostname;
+    if (host && !origins.includes(host)) origins.push(host);
+  } catch {
+    /* No browser Convex URL configured; loopback only. */
+  }
+  return origins;
+}
+
 const nextConfig: NextConfig = {
-  allowedDevOrigins: localMode ? ["127.0.0.1", "[::1]"] : undefined,
+  allowedDevOrigins: localMode ? localDevOrigins() : undefined,
   env: clientEnv,
 };
 

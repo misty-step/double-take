@@ -1,0 +1,325 @@
+<!doctype html>
+<!-- Hash snapshots: #state=splash, #state=howto, #state=play-empty, #state=play-typing, #state=judging, #state=tries-1, #state=tries-2, #state=finish-double-take, #state=finish-close, #state=detail-a, #state=detail-b, #state=error. #fail=1 starts a playable round whose next submission fails once. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Double Take</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root { font-family: "Libre Franklin", Arial, sans-serif; color: #080808; background: #fff; font-synthesis: none; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    button, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .46; }
+    :focus-visible { outline: 3px solid #1967d2; outline-offset: 3px; }
+    .shell { width: min(100% - 36px, 570px); margin: 0 auto; }
+    .splash { min-height: 100svh; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: max(90px, 17vh); padding-bottom: 32px; }
+    .mark { width: 56px; height: 56px; display: grid; place-content: center; gap: 5px; margin-bottom: 28px; }
+    .mark span { width: 36px; height: 10px; border: 2px solid #080808; display: block; }
+    .mark span:last-child { margin-left: 11px; }
+    h1 { font-size: clamp(36px, 9vw, 52px); letter-spacing: -.075em; line-height: 1.03; margin: 0; font-weight: 800; }
+    .rule { font-size: 17px; line-height: 1.5; max-width: 330px; margin: 25px 0 0; }
+    .splash-actions { display: grid; justify-items: center; gap: 9px; width: min(100%, 290px); margin-top: 44px; }
+    .primary { min-height: 52px; width: 100%; background: #080808; color: #fff; border: 2px solid #080808; border-radius: 3px; font-weight: 800; font-size: 15px; padding: 12px 22px; }
+    .primary:not(:disabled):hover { background: #303030; }
+    .text-button { min-height: 44px; background: transparent; border: 0; padding: 9px 14px; color: #080808; text-decoration: underline; text-underline-offset: 4px; font-weight: 600; }
+    .splash-meta { margin: auto 0 0; padding-top: 36px; color: #454545; font-size: 13px; line-height: 1.9; }
+    .game-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #080808; min-height: 66px; }
+    .game-header .name { font-weight: 800; font-size: 19px; letter-spacing: -.045em; }
+    .game-header .text-button { text-decoration: none; padding-right: 0; }
+    .game { padding-bottom: 48px; }
+    .intro { font-size: 15px; line-height: 1.55; margin: 24px 0 17px; max-width: 410px; }
+    .worlds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .world { background: var(--world-bg); color: var(--world-ink); min-height: 84px; display: flex; align-items: flex-end; padding: 12px 13px; font-weight: 800; font-size: clamp(13px, 3.7vw, 17px); line-height: 1.2; }
+    .composer { margin-top: 25px; }
+    .composer label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 10px; }
+    .composer textarea { display: block; width: 100%; min-height: 74px; max-height: 180px; resize: none; overflow-y: auto; border: 2px solid #080808; border-radius: 2px; background: #fff; color: #080808; padding: 15px 14px; font-size: 18px; line-height: 1.5; }
+    .composer-bottom { min-height: 68px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-top: 10px; }
+    .remaining { color: #444; font-size: 13px; line-height: 1.4; padding-top: 12px; }
+    .remaining:empty { visibility: hidden; }
+    .composer .primary { width: 132px; flex: none; }
+    .history { margin-top: 14px; }
+    .history-title { margin: 0 0 10px; font-weight: 800; font-size: 18px; letter-spacing: -.045em; }
+    .grid { border-top: 2px solid #080808; }
+    .try { width: 100%; min-height: 94px; padding: 14px 2px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: center; column-gap: 12px; row-gap: 9px; border: 0; border-bottom: 1px solid #c9c9c9; border-radius: 0; background: #fff; color: #080808; text-align: left; }
+    button.try:hover { background: #f5f5f5; }
+    .try.pending { animation: breathe 1.35s ease-in-out infinite; }
+    .try-line { font-size: 13px; line-height: 1.4; font-weight: 600; overflow-wrap: anywhere; align-self: center; }
+    .try.empty .try-line { height: 2px; width: min(80%, 270px); background: #ddd; }
+    .pip-pairs { display: flex; align-items: center; gap: 14px; justify-self: end; grid-column: 2; grid-row: 1; }
+    .pip-group { display: inline-flex; gap: 4px; }
+    .pip { width: 13px; height: 13px; display: inline-block; border: 1.5px solid #999; background: #fff; }
+    .pip.filled { background: var(--pip-color); border-color: #080808; }
+    .pip.filled.b { border-color: var(--pip-color); }
+    .pip.flipping { animation: flip .48s cubic-bezier(.22,.75,.2,1) both; animation-delay: var(--pip-delay); }
+    .try-rank, .try-note { grid-column: 1 / -1; grid-row: 2; font-size: 13px; line-height: 1.4; }
+    .try-rank { font-weight: 800; }
+    .try-note { color: #383838; }
+    .pending-label { font-weight: 400; }
+    .error-panel { border-top: 2px solid #080808; padding: 18px 0 12px; margin: 12px 0; }
+    .error-panel p { margin: 0 0 14px; line-height: 1.5; font-size: 15px; }
+    .error-panel .primary { width: auto; min-width: 150px; }
+    .finish { padding: 30px 0 22px; text-align: center; }
+    .finish-word { font-size: clamp(42px, 11vw, 68px); font-weight: 800; letter-spacing: -.078em; line-height: 1.05; margin: 0; }
+    .finish-line { font-size: 20px; line-height: 1.4; margin: 20px auto 25px; max-width: 420px; }
+    .finish .primary { width: min(100%, 260px); }
+    .copied { font-size: 13px; min-height: 20px; margin-top: 8px; font-weight: 600; }
+    .tomorrow { margin: 6px 0 0; font-size: 13px; color: #454545; }
+    .finish + .history { margin-top: 8px; }
+    dialog { border: 0; padding: 0; max-width: min(100% - 24px, 520px); width: 100%; max-height: min(88svh, 750px); overflow: auto; color: #080808; background: #fff; box-shadow: 0 18px 70px #0004; }
+    dialog::backdrop { background: #0009; }
+    .sheet { padding: 25px 24px 26px; }
+    .sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .sheet h2 { font-size: 27px; letter-spacing: -.06em; line-height: 1.12; margin: 0 0 24px; }
+    .sheet-head .text-button { text-decoration: underline; margin-top: -10px; margin-right: -12px; }
+    .sheet p { line-height: 1.5; margin: 0 0 19px; font-size: 15px; }
+    .example { padding: 20px 0; border-block: 2px solid #080808; margin: 12px 0 20px; }
+    .example-line { font-size: 22px !important; font-weight: 800; letter-spacing: -.045em; margin-bottom: 13px !important; }
+    .example-worlds { display: flex; gap: 9px; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+    .example-worlds span { border: 1px solid #777; padding: 8px; }
+    .detail-surface { background: var(--world-bg); color: var(--world-ink); min-height: 275px; padding: 25px; display: flex; flex-direction: column; justify-content: space-between; }
+    .detail-world { font-weight: 800; font-size: 14px; }
+    .detail-line { font-weight: 800; font-size: clamp(29px, 8vw, 43px); letter-spacing: -.065em; line-height: 1.14; overflow-wrap: anywhere; margin: 25px 0 !important; }
+    .detail-word { font-weight: 600; font-size: 16px; }
+    .detail-controls { display: flex; justify-content: center; margin-top: 13px; }
+    .detail-controls .text-button { min-height: 48px; }
+    @keyframes flip { 0% { transform: rotateX(90deg); } 100% { transform: rotateX(0); } }
+    @keyframes breathe { 50% { opacity: .48; } }
+    @media (min-width: 720px) { .splash { padding-top: max(100px, 20vh); } .game-header { margin-top: 18px; } .intro { margin-top: 36px; } .world { min-height: 96px; } .composer { margin-top: 34px; } .try { min-height: 98px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; } }
+  </style>
+  <script src="../shared/game.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <dialog id="howto" aria-labelledby="howto-title">
+    <div class="sheet">
+      <div class="sheet-head"><h2 id="howto-title">How to play</h2><button class="text-button" type="button" data-close>Close</button></div>
+      <p>Write one sentence, 12 words or fewer, that fits both worlds.</p>
+      <div class="example"><p class="example-line" id="example-line"></p><div class="example-worlds" id="example-worlds"></div></div>
+      <p>The weaker side is your result.</p>
+      <p>Make one line, not two stitched together.</p>
+      <p>Three tries. Your best one counts.</p>
+    </div>
+  </dialog>
+  <dialog id="detail" aria-labelledby="detail-title">
+    <div class="sheet">
+      <div class="sheet-head"><h2 id="detail-title">Your line</h2><button class="text-button" type="button" data-close>Close</button></div>
+      <div id="detail-content"></div>
+      <div class="detail-controls"><button class="text-button" id="switch-world" type="button"></button></div>
+    </div>
+  </dialog>
+  <script>
+    (() => {
+      const pair = DT.PAIRS[0];
+      const app = document.getElementById('app');
+      const howto = document.getElementById('howto');
+      const detail = document.getElementById('detail');
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+      const rule = `Write one sentence, ${DT.MAX_WORDS} words or fewer, that fits both worlds.`;
+      const escape = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+      const style = (world) => `--world-bg:${world.bg};--world-ink:${world.ink}`;
+      let state;
+      let detailIndex = 0;
+      let detailSide = 'a';
+      let modalOpener = null;
+      let revealTimer = 0;
+      let submissionId = 0;
+
+      function setHash(value) {
+        history.replaceState(null, '', `${location.pathname}${location.search}#${value}`);
+      }
+      function currentHash() {
+        if (state.screen === 'splash') return 'state=splash';
+        if (state.phase === 'error') return 'state=error';
+        if (state.screen === 'finish') return state.tries.some((entry) => entry.rank === 3) ? 'state=finish-double-take' : 'state=finish-close';
+        if (state.tries.length === 2) return 'state=tries-2';
+        if (state.tries.length === 1) return 'state=tries-1';
+        return state.draft ? 'state=play-typing' : 'state=play-empty';
+      }
+      function example(index) {
+        const text = pair.examples[index].text;
+        return { text, ...DT.fixture(pair, text) };
+      }
+      function seed() {
+        clearTimeout(revealTimer);
+        submissionId++;
+        howto.close?.();
+        detail.close?.();
+        const hash = new URLSearchParams(location.hash.slice(1));
+        const route = hash.get('state') || (hash.get('fail') === '1' ? 'play-empty' : 'splash');
+        state = { screen: 'play', phase: 'idle', draft: '', tries: [], pending: '', reveal: -1, revealStage: '', failNext: hash.get('fail') === '1', copied: false };
+        if (route === 'splash' || route === 'howto') state.screen = 'splash';
+        if (route === 'play-typing') state.draft = 'I have waited my whole life for this exact moment';
+        if (['tries-1', 'tries-2', 'detail-a', 'detail-b'].includes(route)) state.tries.push(example(2));
+        if (route === 'tries-2') state.tries.push(example(3));
+        if (route === 'finish-double-take') state.tries.push(example(0));
+        if (route === 'finish-close') state.tries.push(example(2), example(3), { text: 'We need to talk', ...DT.fixture(pair, 'We need to talk') });
+        if (route.startsWith('finish-')) state.screen = 'finish';
+        if (route === 'error') { state.draft = pair.examples[1].text; state.phase = 'error'; }
+        render();
+        if (route === 'howto') openHowto();
+        if (route === 'detail-a' || route === 'detail-b') openDetail(0, route.endsWith('b') ? 'b' : 'a');
+        if (route === 'judging') submitLine(pair.examples[1].text, 7000);
+      }
+      function pipGroup(world, count, shown, flipping, side) {
+        const label = shown ? `${world.label}: ${DT.SIDE_WORDS[count]}` : `${world.label}: waiting`;
+        return `<span class="pip-group" role="img" aria-label="${escape(label)}" style="--pip-color:${world.bg}">${Array.from({ length: 3 }, (_, i) => `<span class="pip ${shown && i < count ? `filled ${side}${flipping ? ' flipping' : ''}` : ''}" style="--pip-delay:${i * 75}ms"></span>`).join('')}</span>`;
+      }
+      function row(entry, index) {
+        if (!entry) return `<div class="try empty" aria-label="Unused try"><span class="try-line"></span><span class="pip-pairs">${pipGroup(pair.a, 0, false, false, 'a')}${pipGroup(pair.b, 0, false, false, 'b')}</span></div>`;
+        const pending = entry.pending;
+        const revealing = state.reveal === index;
+        const showA = !pending && !entry.gate?.match(/stitched|generic/) && (!revealing || ['a', 'b', 'result'].includes(state.revealStage));
+        const showB = !pending && !entry.gate?.match(/stitched|generic/) && (!revealing || ['b', 'result'].includes(state.revealStage));
+        const showResult = !pending && (!revealing || state.revealStage === 'result' || entry.gate !== 'ok');
+        const body = `<span class="try-line">${escape(entry.text)}</span><span class="pip-pairs">${pipGroup(pair.a, entry.a || 0, showA, revealing && state.revealStage === 'a', 'a')}${pipGroup(pair.b, entry.b || 0, showB, revealing && state.revealStage === 'b', 'b')}</span>${pending ? '<span class="try-note pending-label">Reading your line</span>' : entry.gate !== 'ok' ? `<span class="try-note">${escape(DT.GATE_COPY[entry.gate])}</span>` : showResult ? `<span class="try-rank">${escape(DT.RANKS[entry.rank])}</span>` : ''}`;
+        return pending ? `<div class="try pending" aria-live="polite">${body}</div>` : `<button class="try" type="button" data-row="${index}" aria-label="Read your line: ${escape(entry.text)}">${body}</button>`;
+      }
+      function grid() {
+        const entries = [...state.tries];
+        if (state.pending) entries.push({ text: state.pending, pending: true });
+        while (entries.length < DT.TRIES) entries.push(null);
+        return `<section class="history" aria-label="Your tries"><h2 class="history-title">Your tries</h2><div class="grid">${entries.map(row).join('')}</div></section>`;
+      }
+      function render() {
+        if (state.screen === 'splash') {
+          const date = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date());
+          app.innerHTML = `<main class="splash shell"><div class="mark" aria-hidden="true"><span></span><span></span></div><h1>Double Take</h1><p class="rule">${rule}</p><div class="splash-actions"><button class="primary" type="button" id="play">Play</button><button class="text-button" type="button" data-howto>How to play</button></div><p class="splash-meta">Puzzle ${pair.no}<br>${date}</p></main>`;
+          return;
+        }
+        const finished = state.screen === 'finish';
+        const best = state.tries.reduce((winner, entry) => !winner || entry.rank > winner.rank ? entry : winner, null);
+        const content = finished
+          ? `<section class="finish" aria-live="polite"><h1 class="finish-word">${escape(DT.RANKS[best.rank])}</h1><p class="finish-line">${escape(best.text)}</p><button class="primary" type="button" id="share">Share</button><div class="copied" role="status">${state.copied ? 'Copied' : ''}</div><p class="tomorrow">Next pair tomorrow</p></section>`
+          : `<p class="intro">${rule}</p><div class="worlds"><div class="world" style="${style(pair.a)}">${escape(pair.a.label)}</div><div class="world" style="${style(pair.b)}">${escape(pair.b.label)}</div></div>${state.phase === 'error' ? `<div class="error-panel" role="alert"><p>That line didn't go through. Your try wasn't used.</p><button class="primary" type="button" id="retry">Try again</button></div>` : `<form class="composer" id="composer"><label for="line">Your line</label><textarea id="line" rows="1" autocomplete="off" spellcheck="true" ${state.phase !== 'idle' ? 'disabled' : ''}></textarea><div class="composer-bottom"><span class="remaining" id="remaining" aria-live="polite"></span><button class="primary" id="submit" type="submit" ${state.phase !== 'idle' ? 'disabled' : ''}>Submit</button></div></form>`}`;
+        app.innerHTML = `<main class="game shell"><header class="game-header"><span class="name">Double Take</span><button class="text-button" type="button" data-howto>How to play</button></header>${content}${grid()}</main>`;
+        const textarea = document.getElementById('line');
+        if (textarea) {
+          textarea.value = state.draft;
+          updateInput(textarea);
+        }
+      }
+      function updateInput(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = `${Math.min(180, Math.max(74, textarea.scrollHeight))}px`;
+        const count = DT.words(textarea.value);
+        const left = DT.MAX_WORDS - count;
+        const remaining = document.getElementById('remaining');
+        remaining.textContent = left < 0 ? `Cut to ${DT.MAX_WORDS} words` : left <= 3 && count ? `${left} ${left === 1 ? 'word' : 'words'} left` : '';
+        document.getElementById('submit').disabled = !count || left < 0 || state.phase !== 'idle';
+      }
+      async function submitLine(text, delay) {
+        text = text.trim();
+        if (state.phase !== 'idle' || !text || DT.words(text) > DT.MAX_WORDS || state.tries.length >= DT.TRIES) return;
+        const id = ++submissionId;
+        state.pending = text;
+        state.phase = 'judging';
+        state.draft = text;
+        render();
+        setHash('state=judging');
+        const fail = state.failNext;
+        state.failNext = false;
+        try {
+          const result = await DT.judge(pair, text, { ...(delay ? { delay } : {}), fail });
+          if (id !== submissionId) return;
+          state.pending = '';
+          state.draft = '';
+          state.tries.push({ text, ...result });
+          state.reveal = state.tries.length - 1;
+          state.revealStage = result.gate === 'ok' ? 'a' : 'result';
+          state.phase = 'revealing';
+          render();
+          const pause = reduced.matches ? 90 : 480;
+          if (result.gate === 'ok') {
+            revealTimer = setTimeout(() => {
+              state.revealStage = 'b'; render();
+              revealTimer = setTimeout(() => {
+                state.revealStage = 'result'; render();
+                revealTimer = setTimeout(endReveal, pause);
+              }, pause);
+            }, pause);
+          } else revealTimer = setTimeout(endReveal, reduced.matches ? 90 : 1400);
+        } catch {
+          if (id !== submissionId) return;
+          state.pending = '';
+          state.phase = 'error';
+          render();
+          setHash('state=error');
+        }
+      }
+      function endReveal() {
+        state.reveal = -1;
+        state.revealStage = '';
+        state.phase = 'idle';
+        if (state.tries.some((entry) => entry.rank === 3) || state.tries.length >= DT.TRIES) state.screen = 'finish';
+        render();
+        setHash(currentHash());
+      }
+      function openHowto() {
+        modalOpener = document.activeElement;
+        document.getElementById('example-line').textContent = pair.examples[0].text;
+        document.getElementById('example-worlds').innerHTML = `<span>${escape(pair.a.label)}</span><span>${escape(pair.b.label)}</span>`;
+        howto.showModal();
+        setHash('state=howto');
+      }
+      function openDetail(index, side = 'a') {
+        detailIndex = index;
+        detailSide = side;
+        modalOpener = document.activeElement;
+        drawDetail();
+        detail.showModal();
+        setHash(`state=detail-${side}`);
+      }
+      function drawDetail() {
+        const world = pair[detailSide];
+        const entry = state.tries[detailIndex];
+        document.getElementById('detail-content').innerHTML = `<div class="detail-surface" style="${style(world)}"><span class="detail-world">${escape(world.label)}</span><p class="detail-line">${escape(entry.text)}</p><span class="detail-word">${escape(DT.SIDE_WORDS[entry[detailSide]])}</span></div>`;
+        document.getElementById('switch-world').textContent = `See in ${pair[detailSide === 'a' ? 'b' : 'a'].label}`;
+      }
+      app.addEventListener('click', async (event) => {
+        if (event.target.closest('#play')) { state.screen = 'play'; render(); setHash('state=play-empty'); document.getElementById('line').focus(); }
+        if (event.target.closest('[data-howto]')) openHowto();
+        const used = event.target.closest('[data-row]');
+        if (used) openDetail(Number(used.dataset.row));
+        if (event.target.closest('#retry')) { state.phase = 'idle'; submitLine(state.draft); }
+        if (event.target.closest('#share')) {
+          try {
+            await navigator.clipboard.writeText(DT.shareText(pair, state.tries));
+            state.copied = true;
+            document.querySelector('.copied').textContent = 'Copied';
+          } catch {
+            document.querySelector('.copied').textContent = 'Could not copy. Try Share again.';
+          }
+        }
+      });
+      app.addEventListener('input', (event) => {
+        if (event.target.id === 'line') { state.draft = event.target.value; updateInput(event.target); }
+      });
+      app.addEventListener('submit', (event) => {
+        if (event.target.id === 'composer') { event.preventDefault(); submitLine(state.draft); }
+      });
+      for (const sheet of [howto, detail]) {
+        sheet.querySelector('[data-close]').addEventListener('click', () => sheet.close());
+        sheet.addEventListener('close', () => {
+          setHash(currentHash());
+          if (modalOpener?.isConnected) modalOpener.focus();
+        });
+        sheet.addEventListener('click', (event) => { if (event.target === sheet) sheet.close(); });
+      }
+      document.getElementById('switch-world').addEventListener('click', () => {
+        detailSide = detailSide === 'a' ? 'b' : 'a';
+        drawDetail();
+        setHash(`state=detail-${detailSide}`);
+      });
+      addEventListener('hashchange', seed);
+      seed();
+    })();
+  </script>
+</body>
+</html>

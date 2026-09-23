@@ -17,7 +17,7 @@
     "format:check": "prettier --check \"{app,components,convex,lib,tests,scripts,docs,config}/**/*.{ts,tsx,mjs,md,json,css}\" \"*.{ts,json,yaml}\"",
     "test": "vitest run",
     "test:parlor": "vitest run --config scripts/vitest.vendor.mjs",
-    "judge:probe": "node --experimental-strip-types scripts/judge-probe.mjs",
+    "judge:probe": "bun scripts/judge-probe.mjs",
     "check": "pnpm build:parlor && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
   },
   "dependencies": {
