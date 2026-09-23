@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { networkInterfaces } from "node:os";
 import { withSentryConfig } from "@sentry/nextjs";
 import { resolveRuntimeAttribution } from "./lib/runtime-config";
 
@@ -19,19 +20,18 @@ if (attribution) {
 }
 
 /**
- * Local play on phones: the browser reaches Convex at NEXT_PUBLIC_CONVEX_URL,
- * which is this computer's LAN address. The same host must be allowed to load
- * dev assets, or phones render the server HTML and never start.
+ * Local play on phones: phones load the game from this computer's LAN address,
+ * and Next.js blocks dev assets from any host not listed here, which leaves
+ * phones on "Finding your seat" forever. Allow every address this machine
+ * answers on, read from its interfaces, so the list never depends on which
+ * environment value happened to be loaded when this file ran.
  */
 function localDevOrigins(): string[] {
-  const origins = ["127.0.0.1", "[::1]"];
-  try {
-    const host = new URL(process.env.NEXT_PUBLIC_CONVEX_URL ?? "").hostname;
-    if (host && !origins.includes(host)) origins.push(host);
-  } catch {
-    /* No browser Convex URL configured; loopback only. */
-  }
-  return origins;
+  const origins = new Set(["127.0.0.1", "[::1]"]);
+  for (const addresses of Object.values(networkInterfaces()))
+    for (const address of addresses ?? [])
+      if (address.family === "IPv4") origins.add(address.address);
+  return [...origins];
 }
 
 const nextConfig: NextConfig = {

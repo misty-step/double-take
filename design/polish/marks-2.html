@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Double Take marks, round two</title>
+<style>
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #fff; color: #000; }
+  .row { display: grid; grid-template-columns: 200px repeat(3, 1fr); border-bottom: 1px solid #ddd; }
+  .name { padding: 16px; }
+  .name b { display: block; font-size: 16px; }
+  .cell { display: flex; align-items: center; gap: 18px; padding: 16px; }
+  .light { background: #fff; }
+  .tab { background: #dee1e6; }
+  .dark { background: #202124; color: #fff; }
+  .cell svg:nth-child(1) { width: 16px; height: 16px; }
+  .cell svg:nth-child(2) { width: 32px; height: 32px; }
+  .cell svg:nth-child(3) { width: 48px; height: 48px; }
+  .cell svg:nth-child(4) { width: 120px; height: 120px; }
+  header { display: grid; grid-template-columns: 200px repeat(3, 1fr); font-weight: 600; }
+  header div { padding: 8px 16px; }
+  .apps { display: flex; gap: 28px; padding: 24px 16px; background: linear-gradient(135deg, #6b7fa8, #c9a7b6); flex-wrap: wrap; }
+  .app { display: grid; justify-items: center; gap: 6px; color: #fff; font-size: 12px; }
+  .app svg { width: 120px; height: 120px; border-radius: 27px; box-shadow: 0 2px 10px rgb(0 0 0 / 20%); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <path id="b-shape" d="M32 7C17 7 6 16.4 6 28.8c0 7.2 3.7 13.4 9.6 17.5L13 57l13.4-7.2c1.8.4 3.7.6 5.6.6 15 0 26-9.4 26-21.6S47 7 32 7z"/>
+    <clipPath id="b-clip"><use href="#b-shape"/></clipPath>
+    <!-- B1 diagonal split, as round one, with a dark-aware outline. -->
+    <symbol id="b1" viewBox="0 0 64 64">
+      <g clip-path="url(#b-clip)"><rect width="64" height="64" fill="#16203A"/><path d="M0 0h64L0 64z" fill="#F8DCE1"/></g>
+      <use href="#b-shape" fill="none" stroke="#16203A" stroke-width="3"/>
+    </symbol>
+    <!-- B2 horizontal split: world A above, world B below, like the writing screen. -->
+    <symbol id="b2" viewBox="0 0 64 64">
+      <g clip-path="url(#b-clip)"><rect width="64" height="64" fill="#16203A"/><rect width="64" height="29" fill="#F8DCE1"/></g>
+      <use href="#b-shape" fill="none" stroke="#16203A" stroke-width="3"/>
+    </symbol>
+    <!-- B3 horizontal split with the white seam and the line in it. -->
+    <symbol id="b3" viewBox="0 0 64 64">
+      <g clip-path="url(#b-clip)"><rect width="64" height="64" fill="#16203A"/><rect width="64" height="24" fill="#F8DCE1"/><rect y="24" width="64" height="10" fill="#fff"/><rect x="17" y="27.5" width="30" height="3" rx="1.5" fill="#000"/></g>
+      <use href="#b-shape" fill="none" stroke="#16203A" stroke-width="3"/>
+    </symbol>
+    <!-- Dark-tab variant of B2: the outline turns light so the navy half still has an edge. -->
+    <symbol id="b2-dark" viewBox="0 0 64 64">
+      <g clip-path="url(#b-clip)"><rect width="64" height="64" fill="#16203A"/><rect width="64" height="29" fill="#F8DCE1"/></g>
+      <use href="#b-shape" fill="none" stroke="#F8DCE1" stroke-width="3"/>
+    </symbol>
+    <!-- App icons: the bubble on a full-bleed tile (the OS masks the corners). -->
+    <symbol id="app-white" viewBox="0 0 64 64"><rect width="64" height="64" fill="#fff"/><g transform="translate(9 10) scale(.72)"><use href="#b2"/></g></symbol>
+    <symbol id="app-blush" viewBox="0 0 64 64"><rect width="64" height="64" fill="#F8DCE1"/><g transform="translate(9 10) scale(.72)"><g clip-path="url(#b-clip)"><rect width="64" height="64" fill="#16203A"/><rect width="64" height="29" fill="#fff"/></g><use href="#b-shape" fill="none" stroke="#16203A" stroke-width="3"/></g></symbol>
+    <symbol id="app-split" viewBox="0 0 64 64"><rect width="64" height="32" fill="#F8DCE1"/><rect y="32" width="64" height="32" fill="#16203A"/><g transform="translate(9 10) scale(.72)"><use href="#b-shape" fill="#fff" stroke="#16203A" stroke-width="3"/></g></symbol>
+    <symbol id="app-navy" viewBox="0 0 64 64"><rect width="64" height="64" fill="#16203A"/><g transform="translate(9 10) scale(.72)"><g clip-path="url(#b-clip)"><rect width="64" height="64" fill="#fff"/><rect width="64" height="29" fill="#F8DCE1"/></g></g></symbol>
+  </defs>
+</svg>
+<header><div>Mark</div><div>White page</div><div>Browser tab (light)</div><div>Dark</div></header>
+<div id="rows"></div>
+<div class="apps" id="apps"></div>
+<script>
+  const concepts = [
+    ["b1", "b1", "B1 Diagonal", "Round one's bubble."],
+    ["b2", "b2-dark", "B2 Horizontal", "World A over world B. Dark column uses the light outline variant."],
+    ["b3", "b3", "B3 Horizontal + seam", "Adds the white band and the line."],
+  ];
+  const rows = document.getElementById("rows");
+  for (const [id, darkId, name, note] of concepts) {
+    const icons = (s) => Array.from({ length: 4 }, () => `<svg><use href="#${s}"/></svg>`).join("");
+    rows.insertAdjacentHTML("beforeend", `<div class="row"><div class="name"><b>${name}</b>${note}</div>
+      <div class="cell light">${icons(id)}</div><div class="cell tab">${icons(id)}</div><div class="cell dark">${icons(darkId)}</div></div>`);
+  }
+  const apps = document.getElementById("apps");
+  for (const [id, label] of [["app-white", "White tile"], ["app-blush", "Blush tile"], ["app-split", "Split tile"], ["app-navy", "Navy tile"]])
+    apps.insertAdjacentHTML("beforeend", `<div class="app"><svg><use href="#${id}"/></svg>${label}</div>`);
+</script>
+</body>
+</html>

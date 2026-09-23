@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Double Take marks, round three</title>
+<style>
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #fff; color: #000; }
+  .row { display: grid; grid-template-columns: 220px repeat(3, 1fr); border-bottom: 1px solid #ddd; }
+  .name { padding: 16px; }
+  .name b { display: block; font-size: 16px; }
+  .cell { display: flex; align-items: center; gap: 18px; padding: 16px; }
+  .light { background: #fff; }
+  .tab { background: #dee1e6; }
+  .dark { background: #202124; color: #fff; }
+  .cell svg:nth-child(1) { width: 16px; height: 16px; }
+  .cell svg:nth-child(2) { width: 32px; height: 32px; }
+  .cell svg:nth-child(3) { width: 48px; height: 48px; }
+  .cell svg:nth-child(4) { width: 120px; height: 120px; }
+  header { display: grid; grid-template-columns: 220px repeat(3, 1fr); font-weight: 600; }
+  header div { padding: 8px 16px; }
+  .apps { display: flex; gap: 28px; padding: 24px 16px; background: #3a4a6b; flex-wrap: wrap; align-items: end; }
+  .app { display: grid; justify-items: center; gap: 6px; color: #fff; font-size: 12px; }
+  .app svg { width: 120px; height: 120px; }
+  .sq { border-radius: 27px; }
+  .circle { border-radius: 50%; }
+  .safe { position: relative; }
+  .safe::after { content: ""; position: absolute; inset: 12px; border-radius: 50%; border: 1px dashed #fff; }
+  .real { display: flex; gap: 32px; padding: 20px 16px; align-items: center; }
+  .chrome { display: flex; align-items: center; gap: 8px; background: #dee1e6; border-radius: 8px 8px 0 0; padding: 8px 12px; width: 220px; font: 12px system-ui; }
+  .chrome.darkc { background: #35363a; color: #e8eaed; }
+  .chrome svg { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <path id="b" d="M32 7C17 7 6 16.4 6 28.8c0 7.2 3.7 13.4 9.6 17.5L13 57l13.4-7.2c1.8.4 3.7.6 5.6.6 15 0 26-9.4 26-21.6S47 7 32 7z"/>
+    <!-- S1: tile split at the middle; one white bubble across both worlds. -->
+    <symbol id="s1" viewBox="0 0 64 64">
+      <clipPath id="tile"><rect width="64" height="64" rx="14"/></clipPath>
+      <g clip-path="url(#tile)"><rect width="64" height="32" fill="#F8DCE1"/><rect y="32" width="64" height="32" fill="#16203A"/></g>
+      <g transform="translate(10 9) scale(.69)"><use href="#b" fill="#fff"/></g>
+    </symbol>
+    <!-- S2: S1 plus the line itself, in ink, inside the bubble. -->
+    <symbol id="s2" viewBox="0 0 64 64">
+      <g clip-path="url(#tile)"><rect width="64" height="32" fill="#F8DCE1"/><rect y="32" width="64" height="32" fill="#16203A"/></g>
+      <g transform="translate(10 9) scale(.69)"><use href="#b" fill="#fff"/></g>
+      <rect x="21" y="26" width="22" height="4" rx="2" fill="#000"/>
+    </symbol>
+    <!-- S3 (16 px optical): bigger bubble, no tail detail lost, no line; tile corners tighter. -->
+    <symbol id="s3" viewBox="0 0 16 16">
+      <clipPath id="tile16"><rect width="16" height="16" rx="3.5"/></clipPath>
+      <g clip-path="url(#tile16)"><rect width="16" height="8" fill="#F8DCE1"/><rect y="8" width="16" height="8" fill="#16203A"/></g>
+      <path d="M8 2.2C4.3 2.2 1.6 4.5 1.6 7.4c0 1.7.9 3.2 2.3 4.2L3.2 14.3l3.3-1.8c.5.1 1 .1 1.5.1 3.7 0 6.4-2.3 6.4-5.2S11.7 2.2 8 2.2z" fill="#fff"/>
+    </symbol>
+    <!-- Maskable: full-bleed split, bubble inside the 80% safe circle. -->
+    <symbol id="mask" viewBox="0 0 64 64">
+      <rect width="64" height="32" fill="#F8DCE1"/><rect y="32" width="64" height="32" fill="#16203A"/>
+      <g transform="translate(15.5 14.5) scale(.52)"><use href="#b" fill="#fff"/></g>
+      <rect x="24.5" y="27" width="15" height="3" rx="1.5" fill="#000"/>
+    </symbol>
+  </defs>
+</svg>
+<header><div>Mark</div><div>White page</div><div>Browser tab (light)</div><div>Dark</div></header>
+<div id="rows"></div>
+<div class="real">
+  <div class="chrome"><svg><use href="#s3"/></svg>Double Take</div>
+  <div class="chrome darkc"><svg><use href="#s3"/></svg>Double Take</div>
+  <div class="chrome"><svg><use href="#s1"/></svg>Double Take (S1 at 16)</div>
+</div>
+<div class="apps" id="apps"></div>
+<script>
+  const rows = document.getElementById("rows");
+  const row = (name, note, ids) => {
+    const cell = (cls) => `<div class="cell ${cls}">${ids.map((id) => `<svg><use href="#${id}"/></svg>`).join("")}</div>`;
+    rows.insertAdjacentHTML("beforeend", `<div class="row"><div class="name"><b>${name}</b>${note}</div>${cell("light")}${cell("tab")}${cell("dark")}</div>`);
+  };
+  row("S1 Split tile", "One white bubble across both worlds.", ["s1", "s1", "s1", "s1"]);
+  row("S2 Split tile + line", "The line in the bubble at larger sizes.", ["s1", "s1", "s2", "s2"]);
+  row("S3 16 px optical, then S2", "Hand-tuned 16 px, then S1, S2, S2.", ["s3", "s1", "s2", "s2"]);
+  const apps = document.getElementById("apps");
+  for (const [id, cls, label] of [["s2", "sq", "iOS icon (S2)"], ["mask", "circle", "Android, circle mask"], ["mask", "sq", "Android, squircle mask"], ["mask", "safe", "Maskable, safe zone"]])
+    apps.insertAdjacentHTML("beforeend", `<div class="app"><svg class="${cls}"><use href="#${id}"/></svg>${label}</div>`);
+</script>
+</body>
+</html>

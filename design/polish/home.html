@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Double Take home candidates</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+  :root { --serif: "Newsreader", Georgia, serif; --sans: "Libre Franklin", Arial, sans-serif; --ink-2: #595959; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e9e9; font-family: var(--sans); display: flex; gap: 24px; padding: 24px; align-items: start; }
+  .phone { width: 390px; height: 844px; background: #fff; overflow: hidden; position: relative; display: flex; flex-direction: column; box-shadow: 0 1px 4px rgb(0 0 0 / 15%); }
+  .label { position: absolute; top: -20px; left: 0; font: 600 13px var(--sans); }
+  .wrap { position: relative; }
+  .bar { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #e0e0e0; flex: none; }
+  .bar b { font: 600 20px var(--serif); display: flex; gap: 8px; align-items: center; }
+  .mark { width: 26px; height: 26px; }
+  .btn { border: 1.5px solid #000; border-radius: 999px; background: #fff; font: 600 16px var(--sans); height: 52px; width: 100%; }
+  .btn.primary { background: #000; color: #fff; }
+  .quiet { background: none; border: 0; font: 600 15px var(--sans); text-decoration: underline; text-underline-offset: 3px; padding: 12px; }
+  .meta { color: var(--ink-2); font-size: 14px; margin: 0; }
+  /* H1 current */
+  .h1 .inner { flex: 1; display: grid; place-content: center; justify-items: center; gap: 16px; text-align: center; padding: 24px; }
+  .h1 h1 { font: 600 44px/1 var(--serif); margin: 0; }
+  .h1 .lede { font: 400 21px/1.3 var(--serif); margin: 0; max-width: 20ch; }
+  .h1 .actions { display: grid; gap: 10px; width: 220px; }
+  /* H2 seam hero */
+  .h2 .hero { flex: 1; display: grid; grid-template-rows: 1fr auto 1fr; min-height: 0; }
+  .h2 .world { display: grid; place-items: center; font: italic 400 26px var(--serif); padding: 12px; }
+  .h2 .wa { background: #F8DCE1; }
+  .h2 .wb { background: #16203A; color: #fff; }
+  .h2 .band { background: #fff; padding: 18px 20px; text-align: center; display: grid; gap: 10px; }
+  .h2 .line { font: 400 27px/1.15 var(--serif); margin: 0; text-wrap: balance; }
+  .h2 .pts { display: flex; justify-content: center; gap: 18px; font: 600 13px var(--sans); color: var(--ink-2); }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .h2 .foot { padding: 20px 20px 24px; display: grid; gap: 10px; flex: none; }
+  .h2 .title { display: flex; align-items: baseline; justify-content: space-between; }
+  .h2 h1 { font: 600 34px/1 var(--serif); margin: 0 0 4px; }
+  .h2 .lede { font: 400 18px/1.3 var(--serif); margin: 0 0 8px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  /* H3 card hero */
+  .h3 .inner { flex: 1; display: grid; align-content: center; gap: 18px; padding: 24px; }
+  .h3 h1 { font: 600 40px/1 var(--serif); margin: 0; }
+  .h3 .lede { font: 400 20px/1.3 var(--serif); margin: 0; }
+  .h3 .card { border-radius: 18px; overflow: hidden; height: 230px; display: grid; grid-template-rows: auto 1fr auto; padding: 18px 20px; background: #16203A; color: #fff; text-align: center; }
+  .h3 .card i { font: italic 400 20px var(--serif); }
+  .h3 .card p { font: 400 30px/1.15 var(--serif); margin: auto 0; }
+  .h3 .actions { display: grid; gap: 10px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="m" viewBox="0 0 64 64"><clipPath id="t"><rect width="64" height="64" rx="14"/></clipPath><g clip-path="url(#t)"><rect width="64" height="32" fill="#F8DCE1"/><rect y="32" width="64" height="32" fill="#16203A"/></g><g transform="translate(10 9) scale(.69)"><path d="M32 7C17 7 6 16.4 6 28.8c0 7.2 3.7 13.4 9.6 17.5L13 57l13.4-7.2c1.8.4 3.7.6 5.6.6 15 0 26-9.4 26-21.6S47 7 32 7z" fill="#fff"/></g><rect x="21" y="26" width="22" height="4" rx="2" fill="#000"/></symbol>
+</defs></svg>
+
+<div class="wrap"><span class="label">H1 Current stack</span>
+<div class="phone h1">
+  <div class="bar"><b><svg class="mark"><use href="#m"/></svg>Double Take</b></div>
+  <div class="inner">
+    <svg style="width:72px;height:72px"><use href="#m"/></svg>
+    <h1>Double Take</h1>
+    <p class="lede">Everyone gets the same two worlds. Write the line that fits both best.</p>
+    <div class="actions"><button class="btn primary">Start a game</button><button class="btn">Join a game</button></div>
+    <button class="quiet">How to play</button>
+    <p class="meta">2 to 8 players, each on their own phone.</p>
+  </div>
+</div></div>
+
+<div class="wrap"><span class="label">H2 Seam hero</span>
+<div class="phone h2">
+  <div class="bar"><b><svg class="mark"><use href="#m"/></svg>Double Take</b><span class="meta">How to play</span></div>
+  <div class="hero">
+    <div class="world wa">A wedding vow</div>
+    <div class="band">
+      <p class="line">I have waited years for this moment.</p>
+      <div class="pts"><span><i class="sw" style="background:#F8DCE1;outline:1px solid #0002"></i>Fits</span><span><i class="sw" style="background:#16203A"></i>Perfect</span><span style="color:#000">5 points</span></div>
+    </div>
+    <div class="world wb">A villain's gloat</div>
+  </div>
+  <div class="foot">
+    <p class="lede">Two worlds, one line that fits both. A party game for 2 to 8 phones.</p>
+    <button class="btn primary">Start a game</button>
+    <button class="btn">Join a game</button>
+  </div>
+</div></div>
+
+<div class="wrap"><span class="label">H3 Card hero</span>
+<div class="phone h3">
+  <div class="bar"><b><svg class="mark"><use href="#m"/></svg>Double Take</b><span class="meta">How to play</span></div>
+  <div class="inner">
+    <h1>Double Take</h1>
+    <p class="lede">Everyone gets the same two worlds. Write the line that fits both best.</p>
+    <div class="card"><i>A villain's gloat</i><p>I have waited years for this moment.</p><span class="meta" style="color:#fff">Perfect</span></div>
+    <div class="actions"><button class="btn primary">Start a game</button><button class="btn">Join a game</button></div>
+    <p class="meta">2 to 8 players, each on their own phone.</p>
+  </div>
+</div></div>
+</body>
+</html>

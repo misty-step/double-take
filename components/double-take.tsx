@@ -5,6 +5,7 @@ import {
   Component,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -27,6 +28,7 @@ import {
   ADVANCE_GRACE_MS,
   compareLines,
   MAX_PLAYERS,
+  LAST_PLAYER_MS,
   MAX_WORDS,
   MIN_PLAYERS,
   ROUNDS_PER_MATCH,
@@ -34,9 +36,10 @@ import {
 } from "../convex/rules";
 import { revealEndsAt, revealPosition, type RevealStep } from "../lib/reveal";
 import { showsGameTable } from "../lib/room-view";
+import { MARK_SVG, svgDataUrl } from "../lib/brand";
+import { curly } from "../lib/typeset";
 import {
   CONNECTION_UNAVAILABLE,
-  SEAT_RECOVERY_UNAVAILABLE,
   SEAT_RESET_UNAVAILABLE,
   playerFailureCopy,
 } from "../lib/player-copy";
@@ -92,22 +95,52 @@ function failureCode(cause: unknown): string | undefined {
   return undefined;
 }
 const ROOM_KEY = "double-take:room";
-const EXAMPLE = AUTHORED_PAIRS.find((pair) => pair.key === "vow-villain")!;
-const EXAMPLE_PAIR: Pair = {
-  key: EXAMPLE.key,
-  a: EXAMPLE.contextA,
-  b: EXAMPLE.contextB,
+/** World names as a typesetter would set them; the live deck is typeset on the server. */
+const typesetWorld = <T extends { name: string }>(world: T): T => ({
+  ...world,
+  name: curly(world.name),
+});
+const authoredPair = (key: string) => {
+  const pair = AUTHORED_PAIRS.find((candidate) => candidate.key === key)!;
+  return { a: typesetWorld(pair.contextA), b: typesetWorld(pair.contextB) };
 };
-const EXAMPLE_LINE = "I will love you until death takes me";
+const EXAMPLE_PAIR: Pair = {
+  key: "vow-villain",
+  ...authoredPair("vow-villain"),
+};
+const EXAMPLE_LINE = "I will love you until death takes me.";
+/** The home screen's example: authored pairs with lines and ratings from calibration runs. */
+const HOME_EXAMPLES = [
+  {
+    key: "vow-villain",
+    text: "I have waited years for this moment.",
+    first: 2,
+    second: 3,
+  },
+  { key: "orbit-hold", text: "Please stay on the line.", first: 2, second: 3 },
+  {
+    key: "coach-grief",
+    text: "What we do next is what matters.",
+    first: 3,
+    second: 2,
+  },
+  {
+    key: "letter-fineprint",
+    text: "This binds me to you forever.",
+    first: 3,
+    second: 1,
+  },
+].map(({ key, ...line }) => ({ ...authoredPair(key), ...line }));
 /** Each world's rating, 0 to 3: would it be appropriate to say this here? */
 const RATINGS = ["Wrong here", "Awkward", "Fits", "Perfect"] as const;
+/** Why a line scored nothing. One name per reason, everywhere it appears. */
 const ZERO_LABEL: Record<Exclude<Zero, null>, string> = {
-  stitched: "Stitched",
+  stitched: "Stitched together",
   rejected: "One world said no",
 };
 const ZERO_REASON: Record<Exclude<Zero, null>, string> = {
-  stitched: "That's two lines stitched together. Make it one.",
-  rejected: "One world doesn't buy it.",
+  stitched: "Two lines stitched together. It has to be one line.",
+  rejected: "One world said no, so it scores nothing.",
 };
 const worldStyle = (world: World) =>
   ({ "--bg": world.bg, "--wink": world.ink }) as CSSProperties;
@@ -119,35 +152,39 @@ const namesTogether = (names: string[]) =>
     : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 const initial = (name: string) => name.charAt(0).toUpperCase();
 
+const MARK_SRC = svgDataUrl(MARK_SVG);
 function Mark({ size = 26 }: { size?: number }) {
   return (
-    <img
-      className="mark"
-      src={
-        size <= 32
-          ? "/brand/double-take-mark-32.svg"
-          : "/brand/double-take-mark.svg"
-      }
-      width={size}
-      height={size}
-      alt=""
-    />
+    // A data URL, so the mark never waits on a network request.
+    <img className="mark" src={MARK_SRC} width={size} height={size} alt="" />
   );
 }
-/** In a room, the logo and the Menu button both open the room menu; nothing leaves in one tap. */
+/**
+ * In a room, the logo and the Menu button both open the room menu; nothing
+ * leaves in one tap. During a reveal the bar takes on the world's colors so
+ * the world fills the whole screen.
+ */
 function Header({
   onHome,
   onHelp,
   onMenu,
   round,
+  tone,
+  helpText,
 }: {
   onHome?: () => void;
   onHelp: () => void;
   onMenu?: () => void;
   round?: number;
+  tone?: { world: World; side: "a" | "b" };
+  helpText?: boolean;
 }) {
   return (
-    <header className="bar">
+    <header
+      className={`bar${tone ? " toned" : ""}`}
+      data-side={tone?.side}
+      style={tone ? worldStyle(tone.world) : undefined}
+    >
       <button
         className="home"
         type="button"
@@ -168,31 +205,52 @@ function Header({
             Menu
           </button>
         )}
-        <button
-          className="icon-btn"
-          type="button"
-          onClick={onHelp}
-          aria-label="How to play"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            aria-hidden="true"
+        {helpText ? (
+          <button className="quiet" type="button" onClick={onHelp}>
+            How to play
+          </button>
+        ) : (
+          <button
+            className="icon-btn"
+            type="button"
+            onClick={onHelp}
+            aria-label="How to play"
           >
-            <circle cx="12" cy="12" r="9.2" />
-            <path
-              d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6"
-              strokeLinecap="round"
-            />
-            <circle cx="12" cy="16.9" r=".6" fill="currentColor" />
-          </svg>
-        </button>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9.2" />
+              <path
+                d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6"
+                strokeLinecap="round"
+              />
+              <circle cx="12" cy="16.9" r=".6" fill="currentColor" />
+            </svg>
+          </button>
+        )}
       </div>
     </header>
   );
 }
+/** A world's swatch and its rating word, as in the ranked list. */
+function Rating({ world, rating }: { world: World; rating: string }) {
+  return (
+    <span className="rating">
+      <span className="swatch" style={worldStyle(world)} aria-hidden="true" />
+      <span className="sr-only">{world.name}: </span>
+      {rating}
+    </span>
+  );
+}
+/**
+ * The home screen is the game in miniature: two worlds, and a real line that
+ * fits both between them. It cycles through a few examples with the same wipe
+ * as the reveal; with reduced motion it holds the first one.
+ */
 function Home({
   onStart,
   onJoin,
@@ -202,28 +260,54 @@ function Home({
   onJoin: () => void;
   onHelp: () => void;
 }) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(
+      () => setIndex((i) => (i + 1) % HOME_EXAMPLES.length),
+      5200,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+  const example = HOME_EXAMPLES[index]!;
   return (
-    <main className="splash">
-      <div className="splash-inner">
-        <Mark size={72} />
-        <h1>Double Take</h1>
-        <p className="lede">
-          Everyone gets the same two worlds. Write the line that fits both best.
-        </p>
-        <div className="actions">
-          <button className="btn primary wide" onClick={onStart}>
+    <>
+      <Header onHelp={onHelp} helpText />
+      <main className="home-screen">
+        <h1 className="sr-only">Double Take</h1>
+        <figure
+          className="home-hero"
+          key={index}
+          aria-label={`Example: “${example.text}” is ${RATINGS[example.first]} as ${example.a.name} and ${RATINGS[example.second]} as ${example.b.name}.`}
+        >
+          <div className="world world-a" style={worldStyle(example.a)}>
+            <p className="world-label">{example.a.name}</p>
+          </div>
+          <figcaption className="band home-band" aria-hidden="true">
+            <p className="home-line">{example.text}</p>
+            <p className="home-ratings">
+              <Rating world={example.a} rating={RATINGS[example.first]} />
+              <Rating world={example.b} rating={RATINGS[example.second]} />
+              <b>{example.first + example.second} points</b>
+            </p>
+          </figcaption>
+          <div className="world world-b" style={worldStyle(example.b)}>
+            <p className="world-label">{example.b.name}</p>
+          </div>
+        </figure>
+        <div className="home-foot">
+          <p className="lede">
+            Two worlds, one line that fits both. A party game for 2 to 8 phones.
+          </p>
+          <button className="btn primary" onClick={onStart}>
             Start a game
           </button>
-          <button className="btn wide" onClick={onJoin}>
+          <button className="btn" onClick={onJoin}>
             Join a game
           </button>
-          <button className="quiet" onClick={onHelp}>
-            How to play
-          </button>
         </div>
-        <p className="meta">2 to 8 players, each on their own phone.</p>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
 function NameForm({
@@ -247,16 +331,21 @@ function NameForm({
   const [name, setName] = useState("");
   const [code, setCode] = useState(initialCode);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    field: "code" | "name" | null;
+    message: string;
+  } | null>(null);
+  const fail = (field: "code" | "name" | null, message: string) =>
+    setError({ field, message });
   const enter = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const displayName = name.trim();
-    if (!displayName) {
-      setError("Add your name so everyone knows who wrote what.");
+    if (mode === "join" && code.length !== ROOM_CODE_LENGTH) {
+      fail("code", "Enter the four character code from the host’s screen.");
       return;
     }
-    if (mode === "join" && code.length !== ROOM_CODE_LENGTH) {
-      setError(playerFailureCopy("join", "INVALID_ROOM_CODE"));
+    if (!displayName) {
+      fail("name", "Add your name so everyone knows who wrote what.");
       return;
     }
     setBusy(true);
@@ -268,7 +357,10 @@ function NameForm({
       } else {
         const joined = await join({ code, displayName, guestToken: token });
         if (!joined.ok) {
-          setError(playerFailureCopy("join", joined.code));
+          fail(
+            joined.code === "INVALID_DISPLAY_NAME" ? "name" : "code",
+            playerFailureCopy("join", joined.code),
+          );
           return;
         }
         roomId = joined.roomId;
@@ -288,7 +380,8 @@ function NameForm({
       }).catch(() => undefined);
       onRoom(roomId);
     } catch (cause) {
-      setError(
+      fail(
+        null,
         mode === "join"
           ? playerFailureCopy("join", failureCode(cause))
           : CONNECTION_UNAVAILABLE,
@@ -301,7 +394,7 @@ function NameForm({
     <>
       <Header onHome={onHome} onHelp={onHelp} />
       <main>
-        <form className="page center" onSubmit={enter} noValidate>
+        <form className="page form" onSubmit={enter} noValidate>
           <h1 className="title">
             {mode === "start" ? "Start a game" : "Join a game"}
           </h1>
@@ -315,9 +408,18 @@ function NameForm({
                 maxLength={ROOM_CODE_LENGTH}
                 autoComplete="off"
                 autoCapitalize="characters"
+                autoFocus={!initialCode}
                 spellCheck={false}
+                enterKeyHint="next"
+                aria-invalid={error?.field === "code" || undefined}
+                aria-describedby={
+                  error?.field === "code" ? "form-error" : "code-hint"
+                }
                 onChange={(e) => setCode(normalizeCode(e.target.value))}
               />
+              <p className="hint" id="code-hint">
+                Four characters, on the host’s screen.
+              </p>
             </div>
           )}
           <div className="field">
@@ -327,16 +429,28 @@ function NameForm({
               value={name}
               maxLength={16}
               autoComplete="nickname"
+              autoFocus={mode === "start" || !!initialCode}
+              enterKeyHint="go"
+              aria-invalid={error?.field === "name" || undefined}
+              aria-describedby={
+                error?.field === "name" ? "form-error" : undefined
+              }
               onChange={(e) => setName(e.target.value)}
             />
           </div>
           {error && (
-            <p className="alert" role="alert">
-              {error}
+            <p className="alert" id="form-error" role="alert">
+              {error.message}
             </p>
           )}
-          <button className="btn primary wide" type="submit" disabled={busy}>
-            {mode === "start" ? "Start a game" : "Join"}
+          <button className="btn primary" type="submit" disabled={busy}>
+            {busy
+              ? mode === "start"
+                ? "Starting…"
+                : "Joining…"
+              : mode === "start"
+                ? "Start a game"
+                : "Join"}
           </button>
         </form>
       </main>
@@ -377,26 +491,24 @@ function HowTo({
             </svg>
           </button>
         </div>
-        <p className="lede">
-          Everyone gets the same two worlds. Write the line that fits both best.
-        </p>
         <WorldCard pair={EXAMPLE_PAIR} text={EXAMPLE_LINE} />
-        <p className="caption">Same words. Tap to see the other world.</p>
-        <ul>
+        <p className="caption">Same line, two worlds. Tap to flip.</p>
+        <ol className="steps">
+          <li>Everyone sees the same two worlds.</li>
+          <li>Write one line you could say in both, twelve words at most.</li>
           <li>
-            Each world rates from 0 to 3 how right your line would be to say
-            there. <b>Your points are both added together.</b> Six is a double
-            take.
+            Each world rates it: Wrong here, Awkward, Fits, or Perfect.{" "}
+            <b>Your points are the two ratings added up</b>, six at best.
           </li>
           <li>
-            One sentence, twelve words at most. Stitched halves, and lines that
-            would be wrong to say in either world, score nothing.
+            If one world says no, or it is two lines stitched together, it
+            scores nothing.
           </li>
           <li>
-            Lines are revealed without names. Most points takes the round. Three
-            rounds.
+            Lines are revealed without names. Most points takes the round; three
+            rounds make a game.
           </li>
-        </ul>
+        </ol>
         <button
           className="btn primary"
           onClick={() => dialogRef.current?.close()}
@@ -430,7 +542,7 @@ function Verdict({
     <div className={`v${shown ? " shown" : ""}`} aria-hidden={!shown}>
       <Pips value={gated ? 0 : rating} />
       <span className="word">
-        {gated ? "Doesn't count" : (RATINGS[rating] ?? RATINGS[0])}
+        {gated ? "Doesn’t count" : (RATINGS[rating] ?? RATINGS[0])}
       </span>
     </div>
   );
@@ -471,7 +583,7 @@ function WorldLayer({
     >
       {count && <p className="count">{count}</p>}
       <p className="world-label">{world.name}</p>
-      <p className="line">{text}</p>
+      <p className="line">{curly(text)}</p>
       <div className="verdict">
         {rating !== undefined && (
           <Verdict rating={rating} zero={zero ?? null} shown={!!verdictShown} />
@@ -527,7 +639,7 @@ function WorldCard({
       className="card stage"
       data-side={side}
       onClick={onFlip ?? (() => setOwnSide((s) => (s === "a" ? "b" : "a")))}
-      aria-label={`${text}. Read as ${pair[side].name}. Flip to ${pair[side === "a" ? "b" : "a"].name}.`}
+      aria-label={`${curly(text)}. Read as ${pair[side].name}. Flip to ${pair[side === "a" ? "b" : "a"].name}.`}
     >
       <WorldLayer
         side="a"
@@ -575,6 +687,39 @@ function Lobby({
     members.find((m) => m.playerId === state.room.hostPlayerId)?.displayName ??
     "The host";
   const enough = members.length >= MIN_PLAYERS && members.length <= MAX_PLAYERS;
+  const code = state.room.code;
+  /** The share sheet on phones; otherwise the same message on the clipboard. */
+  const invite = async () => {
+    const link = `${location.origin}/?code=${code}`;
+    const text = `Play Double Take with me. Game code ${code}.`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Double Take", text, url: link });
+        return;
+      } catch (cause) {
+        if (cause instanceof DOMException && cause.name === "AbortError")
+          return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(`${text} ${link}`);
+      toast("Invite copied. Paste it to your friends.");
+    } catch {
+      toast(`Couldn’t copy. Tell your friends the code: ${code}.`);
+    }
+  };
+  const startGame = async () => {
+    setBusy(true);
+    setNotice(null);
+    requestRef.current ??= randomId();
+    try {
+      await start({ roomId, requestId: requestRef.current, guestToken: token });
+    } catch (cause) {
+      setNotice(playerFailureCopy("start", failureCode(cause)));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <>
       <Header onMenu={onMenu} onHelp={onHelp} />
@@ -584,25 +729,10 @@ function Lobby({
             <h1 className="meta">Game code</h1>
             <p
               className="code"
-              aria-label={`Game code ${state.room.code.split("").join(" ")}`}
+              aria-label={`Game code ${code.split("").join(" ")}`}
             >
-              {state.room.code}
+              {code}
             </p>
-            <button
-              className="quiet"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(
-                    `${location.origin}/?code=${state.room.code}`,
-                  );
-                  toast("Invite link copied.");
-                } catch {
-                  toast("Couldn't copy. Share the code instead.");
-                }
-              }}
-            >
-              Copy invite link
-            </button>
           </div>
           <ul className="roster" aria-label="Players">
             {members.map((member) => (
@@ -621,7 +751,9 @@ function Lobby({
             {members.length < MAX_PLAYERS && (
               <li className="joining">
                 <span className="avatar" aria-hidden="true" />
-                Waiting for friends to join
+                {members.length === 1
+                  ? "Waiting for friends to join"
+                  : `Room for ${MAX_PLAYERS - members.length} more`}
               </li>
             )}
           </ul>
@@ -634,37 +766,31 @@ function Lobby({
               {notice}
             </p>
           )}
-          {isHost ? (
+          <div className="actions">
+            {isHost && enough && (
+              <button
+                className="btn primary"
+                disabled={busy}
+                onClick={startGame}
+              >
+                {busy ? "Starting…" : "Start the game"}
+              </button>
+            )}
             <button
-              className="btn primary wide"
-              disabled={!enough || busy}
-              onClick={async () => {
-                setBusy(true);
-                setNotice(null);
-                requestRef.current ??= randomId();
-                try {
-                  await start({
-                    roomId,
-                    requestId: requestRef.current,
-                    guestToken: token,
-                  });
-                } catch (cause) {
-                  setNotice(playerFailureCopy("start", failureCode(cause)));
-                } finally {
-                  setBusy(false);
-                }
-              }}
+              className={`btn${isHost && !enough ? " primary" : ""}`}
+              onClick={invite}
             >
-              {enough ? "Start the game" : "Waiting for another player"}
+              Invite friends
             </button>
-          ) : (
-            <p className="wait-note">
-              {host} starts the game when everyone is here.
-            </p>
-          )}
-          <button className="quiet" onClick={onMenu}>
-            Leave the game
-          </button>
+            {isHost && !enough && (
+              <p className="wait-note">You can start once someone joins.</p>
+            )}
+            {!isHost && (
+              <p className="wait-note">
+                {host} starts the game when everyone is here.
+              </p>
+            )}
+          </div>
         </div>
       </main>
     </>
@@ -706,6 +832,14 @@ function Seam({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+  // The field grows with the line (CSS caps it at three lines), so nothing scrolls out of view.
+  useLayoutEffect(() => {
+    const field = fieldRef.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = `${field.scrollHeight}px`;
+  }, [text]);
   const failed = game.me.line?.status === "failed";
   useEffect(() => {
     if (failed && game.me.line) setText(game.me.line.text);
@@ -723,11 +857,11 @@ function Seam({
   );
   let status = "Nobody has locked in yet.";
   if (!game.me.seated)
-    status = "You're watching this round. You can play in the next game.";
+    status = "You’re watching this round. You can play in the next game.";
   else if (locked)
     status =
       missing.length === 0
-        ? "Everyone's in. Here come the lines."
+        ? "Everyone’s in. Here come the lines."
         : seconds !== null
           ? `Waiting on ${waiting}. ${seconds} seconds.`
           : `Locked in. Waiting on ${waiting}.`;
@@ -735,12 +869,16 @@ function Seam({
     seconds !== null &&
     missing.some((p) => p.playerId === game.me.playerId)
   )
-    status = `You're the last one. ${seconds} seconds.`;
-  else if (left < 0)
-    status = `${-left} ${-left === -1 ? "word" : "words"} over`;
+    status = `You’re the last one. ${seconds} seconds.`;
+  else if (left < 0) status = `${-left} ${-left === 1 ? "word" : "words"} over`;
   else if (left <= 3) status = `${left} ${left === 1 ? "word" : "words"} left`;
   else if (missing.length < game.players.length)
     status = `${game.players.length - missing.length} of ${game.players.length} locked in.`;
+  /** The last player's clock, drained as a bar across the band. */
+  const clockLeft =
+    game.lastDeadline === null
+      ? null
+      : Math.max(0, Math.min(1, (game.lastDeadline - now) / LAST_PLAYER_MS));
   const lock = async (event: FormEvent) => {
     event.preventDefault();
     if (
@@ -777,6 +915,13 @@ function Seam({
         <p className="world-label">{game.pair.a.name}</p>
       </div>
       <form className="band" onSubmit={lock} noValidate>
+        {clockLeft !== null && (
+          <div
+            className="clock"
+            aria-hidden="true"
+            style={{ "--left": clockLeft } as CSSProperties}
+          />
+        )}
         <ul className="table" aria-label="Who has locked in">
           {game.players.map((p) => (
             <li className={`seat${p.locked ? " in" : ""}`} key={p.playerId}>
@@ -796,6 +941,7 @@ function Seam({
               Your line, one sentence, twelve words at most
             </label>
             <textarea
+              ref={fieldRef}
               id="line"
               rows={1}
               maxLength={160}
@@ -814,10 +960,12 @@ function Seam({
             />
           </>
         )}
-        {locked && <p className="locked-line">{game.me.line?.text}</p>}
+        {locked && (
+          <p className="locked-line">{curly(game.me.line?.text ?? "")}</p>
+        )}
         {(failed || notice) && (
           <p className="alert" role="alert">
-            {notice ?? "Your line didn't go through. Lock it in again."}
+            {notice ?? "Your line didn’t go through. Lock it in again."}
           </p>
         )}
         <p
@@ -838,7 +986,7 @@ function Seam({
               seconds === 0
             }
           >
-            Lock it in
+            {busy ? "Locking in…" : "Lock it in"}
           </button>
         )}
       </form>
@@ -872,9 +1020,9 @@ function Reveal({ game, now }: { game: GameView; now: number }) {
   const side = step === "line" || step === "verdictA" ? "a" : "b";
   const announced = line
     ? step === "verdictA"
-      ? `${line.text}. ${game.pair.a.name}: ${line.zero === "stitched" ? "Doesn't count" : RATINGS[line.first]}.`
+      ? `${curly(line.text)}. ${game.pair.a.name}: ${line.zero === "stitched" ? "Doesn’t count" : RATINGS[line.first]}.`
       : step === "verdictB"
-        ? `${game.pair.b.name}: ${line.zero === "stitched" ? "Doesn't count" : RATINGS[line.second]}.`
+        ? `${game.pair.b.name}: ${line.zero === "stitched" ? "Doesn’t count" : RATINGS[line.second]}.`
         : step === "score"
           ? `${line.points} points. ${displayName(line.name, line.playerId, game.me.playerId)}.`
           : ""
@@ -986,8 +1134,6 @@ function RoundResult({
   const advance = useMutation(api.game.advance);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [side, setSide] = useState<"a" | "b">("a");
-  const flip = () => setSide((s) => (s === "a" ? "b" : "a"));
   const lines = game.reveal?.lines ?? [];
   const ranked = [...lines].sort(compareLines);
   const best = ranked[0];
@@ -1011,6 +1157,7 @@ function RoundResult({
       now >=
         revealEndsAt(game.reveal.startedAt, lines.length) + ADVANCE_GRACE_MS);
   const last = game.round === game.rounds;
+  const winner = winners.length === 1 ? winners[0] : undefined;
   return (
     <main>
       <div className="page">
@@ -1020,57 +1167,60 @@ function RoundResult({
           </p>
           <h1 className="title">{title}</h1>
         </div>
-        {lines.length > 0 && (
-          <div
-            className="world-toggle"
-            role="radiogroup"
-            aria-label="Read every line as"
-          >
-            {(["a", "b"] as const).map((key) => (
-              <button
-                key={key}
-                type="button"
-                role="radio"
-                aria-checked={side === key}
-                onClick={() => setSide(key)}
-              >
-                {game.pair[key].name}
-              </button>
-            ))}
-          </div>
+        {winner && (
+          <figure className="winner">
+            <WorldCard
+              pair={game.pair}
+              text={winner.text}
+              first={winner.first}
+              second={winner.second}
+              zero={winner.zero}
+            />
+            <figcaption className="caption">
+              Tap to see the other world.
+            </figcaption>
+          </figure>
         )}
-        <ol className="lines" aria-label="Every line this round">
+        <ol className="ranked" aria-label="Every line this round">
           {ranked.map((line) => (
             <li key={line.playerId}>
-              <WorldCard
-                pair={game.pair}
-                text={line.text}
-                first={line.first}
-                second={line.second}
-                zero={line.zero}
-                side={side}
-                onFlip={flip}
-              />
-              <p className="line-by">
-                <span className="pts">{line.points}</span>
-                <b>{displayName(line.name, line.playerId, game.me.playerId)}</b>
-                <span className="reason">
-                  {line.zero
-                    ? ZERO_LABEL[line.zero]
-                    : `${line.first} + ${line.second} points`}
-                </span>
-              </p>
+              <span className="pts">{line.points}</span>
+              <div className="row-body">
+                <p className="row-line">{curly(line.text)}</p>
+                <p className="row-meta">
+                  <b>
+                    {displayName(line.name, line.playerId, game.me.playerId)}
+                  </b>
+                  {line.zero !== "stitched" && (
+                    <>
+                      <Rating
+                        world={game.pair.a}
+                        rating={RATINGS[line.first]}
+                      />
+                      <Rating
+                        world={game.pair.b}
+                        rating={RATINGS[line.second]}
+                      />
+                    </>
+                  )}
+                  {line.zero && (
+                    <span className="reason">{ZERO_LABEL[line.zero]}</span>
+                  )}
+                </p>
+              </div>
             </li>
           ))}
           {game.players
             .filter((p) => !lines.some((line) => line.playerId === p.playerId))
             .map((p) => (
               <li key={p.playerId}>
-                <p className="line-by">
-                  <span className="pts">0</span>
-                  <b>{displayName(p.name, p.playerId, game.me.playerId)}</b>
-                  <span className="reason">No line</span>
-                </p>
+                <span className="pts">0</span>
+                <div className="row-body">
+                  <p className="row-meta">
+                    <b>{displayName(p.name, p.playerId, game.me.playerId)}</b>
+                    <span className="reason">No line this round</span>
+                  </p>
+                </div>
               </li>
             ))}
         </ol>
@@ -1123,12 +1273,14 @@ function RoundResult({
 }
 function Final({
   game,
+  hostName,
   onAgain,
   onLobby,
   busy,
   notice,
 }: {
   game: GameView;
+  hostName: string;
   onAgain: () => void;
   onLobby: () => void;
   busy: boolean;
@@ -1140,16 +1292,23 @@ function Final({
     .map((p) => displayName(p.name, p.playerId, game.me.playerId))
     .sort((a, b) => (a === "You" ? -1 : b === "You" ? 1 : 0));
   const title =
-    winners.length > 1
-      ? `${namesTogether(winners)} tie`
-      : `${winners[0]} ${winners[0] === "You" ? "win" : "wins"}`;
+    top === 0
+      ? "Nobody scored"
+      : winners.length > 1
+        ? `${namesTogether(winners)} tie`
+        : `${winners[0]} ${winners[0] === "You" ? "win" : "wins"}`;
   const best = game.bestLine;
   return (
     <main>
       <div className="page">
-        <div className="center heading">
+        <div className="center heading final-heading">
           <p className="meta">Final scores</p>
-          <h1 className="title">{title}</h1>
+          <h1 className="title final-title">{title}</h1>
+          {top > 0 && (
+            <p className="lede">
+              {top} {top === 1 ? "point" : "points"} over {game.rounds} rounds.
+            </p>
+          )}
         </div>
         <Standings players={game.players} me={game.me.playerId} gain={false} />
         {best && (
@@ -1165,19 +1324,23 @@ function Final({
               zero={best.zero}
             />
             <p className="caption">
-              {best.name}, {best.points} points. Tap to flip.
+              {best.name}, {best.points}{" "}
+              {best.points === 1 ? "point" : "points"}. Tap to see the other
+              world.
             </p>
           </section>
         )}
         <div className="actions">
-          {game.isHost && (
+          {game.isHost ? (
             <button
               className="btn primary wide"
               disabled={busy}
               onClick={onAgain}
             >
-              Play again
+              {busy ? "Starting…" : "Play again"}
             </button>
+          ) : (
+            <p className="wait-note">{hostName} can start another game.</p>
           )}
           <button className="btn wide" onClick={onLobby}>
             Back to lobby
@@ -1229,6 +1392,22 @@ function Game({
     view.phase === "reveal" && view.reveal
       ? revealPosition(view.reveal.startedAt, view.reveal.lines.length, now)
       : null;
+  const flooding =
+    view.phase === "reveal" &&
+    !!view.reveal &&
+    now < view.reveal.startedAt + 460;
+  const revealSide: "a" | "b" | null =
+    position && !position.done
+      ? position.step === "line" || position.step === "verdictA"
+        ? "a"
+        : "b"
+      : null;
+  // The bar takes the world's colors while the room watches the lines.
+  const tone = flooding
+    ? { world: view.pair.a, side: "a" as const }
+    : revealSide
+      ? { world: view.pair[revealSide], side: revealSide }
+      : undefined;
   const playAgain = async () => {
     setBusy(true);
     setNotice(null);
@@ -1247,6 +1426,7 @@ function Game({
         onMenu={onMenu}
         onHelp={onHelp}
         round={view.phase === "finished" ? undefined : view.round}
+        tone={tone}
       />
       {view.phase === "writing" ? (
         <Seam
@@ -1255,9 +1435,7 @@ function Game({
           token={token}
           now={now}
         />
-      ) : view.phase === "reveal" &&
-        view.reveal &&
-        now < view.reveal.startedAt + 460 ? (
+      ) : flooding ? (
         <Flood pair={view.pair} round={view.round} />
       ) : view.phase === "reveal" && position && !position.done ? (
         <Reveal game={view} now={now} />
@@ -1266,6 +1444,7 @@ function Game({
       ) : (
         <Final
           game={view}
+          hostName={hostName}
           onAgain={playAgain}
           onLobby={onLobby}
           busy={busy}
@@ -1577,11 +1756,10 @@ export function DoubleTake() {
       <>
         <Header onHome={home} onHelp={help} />
         <main className="page center">
-          <h1 className="title">We couldn't restore your seat.</h1>
-          <p className="meta">{SEAT_RECOVERY_UNAVAILABLE}</p>
+          <h1 className="title">We couldn’t restore your seat</h1>
           <p className="meta">
-            Starting fresh makes a new seat. It won't restore your old game or
-            points.
+            Check your connection and reload the page. Or start fresh with a new
+            seat; your old game and points stay behind.
           </p>
           <button
             className="btn primary wide"
@@ -1602,7 +1780,7 @@ export function DoubleTake() {
     screen = (
       <RoomBoundary
         key={roomId}
-        onError={() => gone("That game isn't available anymore.")}
+        onError={() => gone("That game isn’t available anymore.")}
       >
         <Room
           roomId={roomId}

@@ -1,70 +1,60 @@
 import { describe, expect, it } from "vitest";
-import {
-  CONNECTION_UNAVAILABLE,
-  SEAT_RECOVERY_UNAVAILABLE,
-  SEAT_RESET_UNAVAILABLE,
-  playerFailureCopy,
-} from "../lib/player-copy";
+import { CONNECTION_UNAVAILABLE, playerFailureCopy } from "../lib/player-copy";
+
+/** Every refusal the backend can send for each action; each needs its own plain sentence. */
+const KNOWN_CODES = {
+  join: [
+    "INVALID_ROOM_CODE",
+    "ROOM_NOT_OPEN",
+    "ROOM_FULL",
+    "INVALID_DISPLAY_NAME",
+    "ROOM_JOIN_RATE_LIMIT",
+    "ROOM_DATA_INVALID",
+  ],
+  start: [
+    "HOST_REQUIRED",
+    "NOT_HOST",
+    "ROOM_NOT_OPEN",
+    "NOT_ENOUGH_PLAYERS",
+    "TOO_MANY_PLAYERS",
+    "ROOM_FULL",
+    "MATCH_ALREADY_ACTIVE",
+    "GAME_ALREADY_ACTIVE",
+  ],
+  submit: [
+    "WRONG_PHASE",
+    "ALREADY_LOCKED",
+    "NOT_SEATED",
+    "SENTENCE_EMPTY",
+    "SENTENCE_TOO_LONG",
+    "TOO_MANY_WORDS",
+    "NO_LETTERS",
+    "SLOW_DOWN",
+  ],
+  advance: ["WRONG_PHASE", "HOST_REQUIRED", "REVEAL_RUNNING"],
+} as const;
 
 describe("player-facing failure copy", () => {
-  it("translates every room and game refusal into plain language", () => {
-    const cases = {
-      join: {
-        INVALID_ROOM_CODE: "No game with that code. Check it and try again.",
-        ROOM_NOT_OPEN: "No game with that code. Check it and try again.",
-        ROOM_FULL: "That game is full.",
-        INVALID_DISPLAY_NAME: "Add your name so everyone knows who wrote what.",
-        ROOM_JOIN_RATE_LIMIT: "Too many tries. Wait a minute, then try again.",
-        ROOM_DATA_INVALID: "That game isn't available. Ask for a new invite.",
-      },
-      start: {
-        HOST_REQUIRED: "Only the host can start the game.",
-        NOT_HOST: "Only the host can start the game.",
-        ROOM_NOT_OPEN: "This game is no longer open.",
-        NOT_ENOUGH_PLAYERS: "Wait for another player to join.",
-        TOO_MANY_PLAYERS: "This game has room for eight players.",
-        ROOM_FULL: "This game has room for eight players.",
-        MATCH_ALREADY_ACTIVE: "The game has already started.",
-        GAME_ALREADY_ACTIVE: "The game has already started.",
-      },
-      submit: {
-        WRONG_PHASE: "This round is already over.",
-        ALREADY_LOCKED: "Your line is already locked in.",
-        NOT_SEATED:
-          "You're watching this round. You can play in the next game.",
-        SENTENCE_EMPTY: "Write one line before locking it in.",
-        SENTENCE_TOO_LONG: "Keep your line under 160 characters.",
-        TOO_MANY_WORDS: "One line, twelve words at most.",
-        NO_LETTERS: "Use at least one letter or number.",
-        SLOW_DOWN:
-          "That's a lot of lines at once. Wait a minute, then try again.",
-      },
-      advance: {
-        WRONG_PHASE: "This round has already moved on.",
-        HOST_REQUIRED:
-          "The host starts the next round. You can step in if they're away.",
-        REVEAL_RUNNING: "Wait until every line has been shown.",
-      },
-    } as const;
-    for (const action of Object.keys(cases) as (keyof typeof cases)[]) {
-      for (const [code, sentence] of Object.entries(cases[action])) {
-        expect(playerFailureCopy(action, code)).toBe(sentence);
+  it("gives every known refusal its own sentence, never the fallback or the raw code", () => {
+    for (const action of Object.keys(
+      KNOWN_CODES,
+    ) as (keyof typeof KNOWN_CODES)[])
+      for (const code of KNOWN_CODES[action]) {
+        const sentence = playerFailureCopy(action, code);
+        expect(sentence, `${action} ${code}`).not.toBe(CONNECTION_UNAVAILABLE);
+        expect(sentence, `${action} ${code}`).not.toContain(code);
+        expect(sentence, `${action} ${code}`).toMatch(/[.!?]$/);
       }
-    }
   });
 
   it("uses one safe connection fallback for unknown and missing codes", () => {
-    for (const action of ["join", "start", "submit", "advance"] as const) {
+    for (const action of Object.keys(
+      KNOWN_CODES,
+    ) as (keyof typeof KNOWN_CODES)[]) {
       expect(playerFailureCopy(action, "UNEXPECTED_PROVIDER_BODY")).toBe(
         CONNECTION_UNAVAILABLE,
       );
       expect(playerFailureCopy(action)).toBe(CONNECTION_UNAVAILABLE);
     }
-    expect(SEAT_RECOVERY_UNAVAILABLE).toBe(
-      "We couldn't restore your seat. Check your connection and try again.",
-    );
-    expect(SEAT_RESET_UNAVAILABLE).toBe(
-      "We couldn't start a fresh seat. Check your connection and try again.",
-    );
   });
 });

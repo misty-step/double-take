@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>16 px optical variants</title>
+<style>
+  body { margin: 0; padding: 12px; font: 12px system-ui, sans-serif; display: grid; gap: 10px; }
+  .set { display: flex; gap: 10px; align-items: center; }
+  .chrome { display: flex; align-items: center; gap: 8px; background: #dee1e6; border-radius: 8px 8px 0 0; padding: 8px 12px; width: 150px; }
+  .chrome.d { background: #35363a; color: #e8eaed; }
+  .chrome.w { background: #fff; outline: 1px solid #ddd; }
+  img { width: 16px; height: 16px; }
+  b { width: 70px; }
+</style>
+</head>
+<body>
+<script>
+  const tile = (pink, bubble, outline) => `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+      <clipPath id="t"><rect width="16" height="16" rx="3.5"/></clipPath>
+      <g clip-path="url(#t)"><rect width="16" height="8" fill="${pink}"/><rect y="8" width="16" height="8" fill="#16203A"/></g>
+      ${outline ? `<rect x=".5" y=".5" width="15" height="15" rx="3" fill="none" stroke="${outline}"/>` : ""}
+      ${bubble}
+    </svg>`;
+  const big = `<path d="M8 2.2C4.3 2.2 1.6 4.5 1.6 7.4c0 1.7.9 3.2 2.3 4.2L3.2 14.3l3.3-1.8c.5.1 1 .1 1.5.1 3.7 0 6.4-2.3 6.4-5.2S11.7 2.2 8 2.2z" fill="#fff"/>`;
+  const small = `<path d="M8 3.5c-3 0-5.2 1.8-5.2 4.2 0 1.4.7 2.6 1.9 3.4l-.6 2.3 2.7-1.4c.4.1.8.1 1.2.1 3 0 5.2-1.9 5.2-4.3S11 3.5 8 3.5z" fill="#fff"/>`;
+  const variants = [
+    ["S3 now", tile("#F8DCE1", big)],
+    ["Deeper pink", tile("#F2A5B8", big)],
+    ["Deeper + small", tile("#F2A5B8", small)],
+    ["Rose + small", tile("#E8839C", small)],
+  ];
+  for (const [name, svg] of variants) {
+    const url = "data:image/svg+xml," + encodeURIComponent(svg);
+    document.body.insertAdjacentHTML("beforeend", `<div class="set"><b>${name}</b>
+      <div class="chrome w"><img src="${url}">Double Take</div>
+      <div class="chrome"><img src="${url}">Double Take</div>
+      <div class="chrome d"><img src="${url}">Double Take</div></div>`);
+  }
+</script>
+</body>
+</html>
