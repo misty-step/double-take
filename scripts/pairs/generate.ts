@@ -1,7 +1,8 @@
 /**
  * Generate context pairs, run each through the Jev battery, and keep the passes.
  *
- *   pass-env run -e OPENROUTER_API_KEY=workstation/DOUBLETAKE_OPENROUTER_API_KEY -- \
+ *   pass-env run -e OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_SHARED_JUDGMENT_API_KEY \
+ *     -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- \
  *     env JEV_MODEL=typesafe/jev-1.13 JEV_DECISIONS_URL=https://openrouter.ai/api/alpha/decisions \
  *     bun scripts/pairs/generate.ts --batches 10 --max-usd 0.25
  *
@@ -164,7 +165,9 @@ const allowShrink = argv.includes("--allow-shrink");
 const judgeConfig = readJudgeConfig(process.env);
 const openRouterKey = process.env.OPENROUTER_API_KEY;
 if (!judgeConfig || !openRouterKey)
-  throw new Error("Set OPENROUTER_API_KEY, JEV_MODEL, and JEV_DECISIONS_URL.");
+  throw new Error(
+    "Set OPENROUTER_API_KEY for pair generation and JEV_OPENROUTER_API_KEY, JEV_MODEL, JEV_DECISIONS_URL for judging.",
+  );
 const config: JudgeConfig = judgeConfig;
 const apiKey: string = openRouterKey;
 

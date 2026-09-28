@@ -45,23 +45,27 @@ const config = {
 };
 
 describe("judge configuration", () => {
-  it("requires the decisions url, key, and model together", () => {
+  it("requires the decisions url, dedicated key, and model together", () => {
     expect(readJudgeConfig({})).toBeNull();
     expect(readJudgeConfig({ JEV_DECISIONS_URL: "https://x.test" })).toBeNull();
+    const env = {
+      JEV_DECISIONS_URL: "https://x.test/decisions",
+      JEV_MODEL: "typesafe/jev-1.13",
+      OPENROUTER_API_KEY: "shared-key-not-for-jev",
+    };
+    expect(readJudgeConfig(env)).toBeNull();
     expect(
-      readJudgeConfig({
-        JEV_DECISIONS_URL: "https://x.test",
-        JEV_MODEL: "typesafe/jev-1.13",
-        OPENROUTER_API_KEY: "short",
-      }),
+      readJudgeConfig({ ...env, JEV_OPENROUTER_API_KEY: "short" }),
     ).toBeNull();
     expect(
       readJudgeConfig({
-        JEV_DECISIONS_URL: "https://x.test/decisions",
-        JEV_MODEL: "typesafe/jev-1.13",
-        OPENROUTER_API_KEY: "a-long-enough-key",
+        ...env,
+        JEV_OPENROUTER_API_KEY: "dedicated-jev-key",
       }),
-    ).toMatchObject({ model: "typesafe/jev-1.13" });
+    ).toMatchObject({
+      model: "typesafe/jev-1.13",
+      apiKey: "dedicated-jev-key",
+    });
   });
 });
 

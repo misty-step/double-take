@@ -37,7 +37,7 @@ function judgeResponse(levels: Levels) {
 function installJudge(levelsFor: (sentence: string) => Levels) {
   vi.stubEnv("JEV_DECISIONS_URL", "https://judge.test/decisions");
   vi.stubEnv("JEV_MODEL", "typesafe/jev-1.13");
-  vi.stubEnv("OPENROUTER_API_KEY", "test-key-not-real");
+  vi.stubEnv("JEV_OPENROUTER_API_KEY", "test-key-not-real");
   const fetchMock = vi.fn(async (_url: unknown, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as {
       state: { sentence: string };

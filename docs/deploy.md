@@ -14,13 +14,13 @@ in `pass` and in Convex deployment env.
 
 ## 2. Build
 
-Credentials come from pass through `pass-env`; `.env.pass` lists the entry names
-(Sentry auth token included). The Sentry DSN is public and lives in `wrangler.jsonc`.
+Bind only the credential each command needs from pass; `.env.pass` inventories
+local entry names and must not be passed wholesale to the frontend build.
 Build with source map upload:
 
 ```sh
 SENTRY_ORG=misty-step SENTRY_PROJECT=double-take APP_RELEASE=$(git rev-parse HEAD) \
-  pass-env run -f .env.pass -- pnpm exec opennextjs-cloudflare build
+  pass-env run -e SENTRY_AUTH_TOKEN=workstation/SENTRY_AUTH_TOKEN -- pnpm exec opennextjs-cloudflare build
 ```
 
 ```sh
@@ -34,18 +34,44 @@ and must point at the Convex deployment above.
 
 ## 3. Backend deploy
 
-```sh
-CONVEX_DEPLOY_KEY=$(pass show workstation/DOUBLETAKE_CONVEX_DEPLOY_KEY) npx convex deploy --yes
-```
+Server env on the deployment (names only; existing settings provisioned by
+t_a342c750; the dedicated Jev key must be installed before this code deploy):
 
-Server env on the deployment (names only; already set by provisioning t_a342c750):
-
-- `OPENROUTER_API_KEY` — scoped key, `pass` label `workstation/DOUBLETAKE_OPENROUTER_API_KEY`.
+- `JEV_OPENROUTER_API_KEY` — dedicated Jev-only key, `pass` label
+  `workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY`. No
+  `OPENROUTER_API_KEY` fallback; leave any existing mixed-use key and issuer
+  caps untouched.
 - `JEV_MODEL=typesafe/jev-1.13`
 - `JEV_DECISIONS_URL=https://openrouter.ai/api/alpha/decisions`
 - `PARLOR_GUEST_TOKEN_AUDIENCE=doubletake`
 - `PARLOR_GUEST_TOKEN_KEYS` — key ring, `pass` label `workstation/DOUBLETAKE_PARLOR_GUEST_TOKEN_KEYS`.
 - `PRODUCT_ENVIRONMENT=production` — explicit product-event partition; never inferred.
+
+The release owner installs the dedicated secret on the existing production
+deployment (not the Worker) without printing its value:
+
+```sh
+pass-env run \
+  -e CONVEX_DEPLOY_KEY=workstation/DOUBLETAKE_CONVEX_DEPLOY_KEY \
+  -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- \
+  sh -c 'printf %s "$JEV_OPENROUTER_API_KEY" | pnpm exec convex env set --force JEV_OPENROUTER_API_KEY'
+```
+
+After setting the key, deploy the backend:
+
+```sh
+pass-env run -e CONVEX_DEPLOY_KEY=workstation/DOUBLETAKE_CONVEX_DEPLOY_KEY -- pnpm exec convex deploy --yes
+```
+
+After deploying backend code, smoke a controlled production room with two
+guests: submit one new, valid line from one guest, leave the other guest idle,
+and wait for the 30-second last-player deadline to reveal its score. Use a
+previously unjudged line so the cache cannot bypass Jev; verify the dedicated
+key's usage readback rather than attributing a cached reveal to this key.
+Exercise the missing-dedicated-key retry path on a fresh anonymous local
+backend with only a generic key, not by disabling the production key. Do not
+run `judge:probe` or the pair battery as a production smoke: both make multiple
+paid Jev requests.
 
 ## 4. Worker env (web server only)
 

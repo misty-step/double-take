@@ -5,12 +5,12 @@
  * (convex/judge.ts runAdjudication), so the request, parsing, and composition
  * are exactly what the game uses. Prints only non-secret results: weighted fit
  * per world, ratings, points, and expected-versus-live verdicts. Requires
- * OPENROUTER_API_KEY, JEV_MODEL, and JEV_DECISIONS_URL in the environment.
+ * JEV_OPENROUTER_API_KEY, JEV_MODEL, and JEV_DECISIONS_URL in the environment.
  * Never prints the key.
  *
  *   JEV_DECISIONS_URL=https://openrouter.ai/api/alpha/decisions \
  *   JEV_MODEL=typesafe/jev-1.13 \
- *   pass-env run -e OPENROUTER_API_KEY=workstation/DOUBLETAKE_OPENROUTER_API_KEY -- \
+ *   pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- \
  *   pnpm judge:probe
  *
  * Set PROBE_REPEATS=N (default 1) to judge each entry N times and observe
@@ -34,7 +34,7 @@ const repeats = Math.max(
 );
 if (!config) {
   console.error(
-    "Missing JEV_DECISIONS_URL / JEV_MODEL / OPENROUTER_API_KEY in the environment.",
+    "Missing JEV_DECISIONS_URL / JEV_MODEL / JEV_OPENROUTER_API_KEY in the environment.",
   );
   process.exit(2);
 }

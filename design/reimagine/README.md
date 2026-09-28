@@ -15,7 +15,7 @@ authored example levels (`DT.fixture`) and never call the judge.
 ```sh
 JEV_MODEL=typesafe/jev-1.13 \
 JEV_DECISIONS_URL=https://openrouter.ai/api/alpha/decisions \
-pass-env run -e OPENROUTER_API_KEY=workstation/DOUBLETAKE_OPENROUTER_API_KEY -- \
+pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- \
 bun design/reimagine/serve.ts
 # http://127.0.0.1:4173/synthesis/   http://127.0.0.1:4173/finalists/seam.html
 ```

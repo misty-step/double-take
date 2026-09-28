@@ -32,15 +32,17 @@ design record and spec in `design/reimagine/`.
 
 ```sh
 pnpm install
-pass-env run -e OPENROUTER_API_KEY=workstation/DOUBLETAKE_OPENROUTER_API_KEY -- pnpm bootstrap
+pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- pnpm bootstrap
 pnpm dev         # web on http://localhost:3210, backend on 3220/3221
 ```
 
-Passing the key to `bootstrap` (or `dev`) stores it on the anonymous local
-Convex deployment only; it is never written to `.env.local` and never reaches
-the browser or the Next.js process. Without a key, lines fail to score and
-players are asked to lock them in again. `JEV_MODEL` and `JEV_DECISIONS_URL`
-default to `typesafe/jev-1.13` and the OpenRouter decisions route.
+Passing the dedicated Jev key to `bootstrap` (or `dev`) stores it on the
+anonymous local Convex deployment only; it is never written to `.env.local`
+and never reaches the browser or the Next.js process. The generic
+`OPENROUTER_API_KEY` cannot enable scoring. Without the dedicated key, lines
+fail to score and players are asked to lock them in again. `JEV_MODEL` and
+`JEV_DECISIONS_URL` default to `typesafe/jev-1.13` and the OpenRouter decisions
+route.
 
 To play on phones on the same Wi-Fi, set `NEXT_PUBLIC_CONVEX_URL` and
 `NEXT_PUBLIC_CONVEX_SITE_URL` in `.env.local` to this computer's LAN IP (ports
@@ -55,13 +57,13 @@ judge and never call a live model.
 The game server reads these Convex environment variables. Values never reach
 the browser.
 
-| Variable                      | Purpose                                                                      |
-| ----------------------------- | ---------------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`          | Server-only key for the Jev decisions endpoint.                              |
-| `JEV_MODEL`                   | Model id, for example `typesafe/jev-1.13`.                                   |
-| `JEV_DECISIONS_URL`           | Decisions endpoint, for example `https://openrouter.ai/api/alpha/decisions`. |
-| `PARLOR_GUEST_TOKEN_KEYS`     | JSON key id to base64url secret (at least 32 bytes).                         |
-| `PARLOR_GUEST_TOKEN_AUDIENCE` | `doubletake`.                                                                |
+| Variable                      | Purpose                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `JEV_OPENROUTER_API_KEY`      | Dedicated server-only key for Jev decisions; no generic fallback.              |
+| `JEV_MODEL`                   | Model id, for example `typesafe/jev-1.13`.                                      |
+| `JEV_DECISIONS_URL`           | Decisions endpoint, for example `https://openrouter.ai/api/alpha/decisions`.    |
+| `PARLOR_GUEST_TOKEN_KEYS`     | JSON key id to base64url secret (at least 32 bytes).                            |
+| `PARLOR_GUEST_TOKEN_AUDIENCE` | `doubletake`.                                                                   |
 
 `pnpm bootstrap` generates local-only values for the Parlor keys. Production
 secrets are provisioned by the deployment owner; see `docs/deploy.md`.
@@ -74,13 +76,16 @@ A generated pair reaches players only after it passes the Jev pair battery.
 Add more with:
 
 ```sh
-pass-env run -e OPENROUTER_API_KEY=workstation/DOUBLETAKE_OPENROUTER_API_KEY -- \
+pass-env run -e OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_SHARED_JUDGMENT_API_KEY \
+  -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- \
   env JEV_MODEL=typesafe/jev-1.13 JEV_DECISIONS_URL=https://openrouter.ai/api/alpha/decisions \
   bun scripts/pairs/generate.ts --batches 10 --max-usd 0.1
 ```
 
-`bun scripts/pairs/calibrate.ts` (same environment) rechecks the battery
-against authored pairs and planted bad pairs. See `docs/pairs.md`.
+`OPENROUTER_API_KEY` funds pair generation only; Jev battery decisions use
+`JEV_OPENROUTER_API_KEY`. To recheck authored and planted pairs without generation,
+run `bun scripts/pairs/calibrate.ts` with just the dedicated Jev key and the same
+`JEV_MODEL` / `JEV_DECISIONS_URL` environment. See `docs/pairs.md`.
 
 ## Parlor pin
 

@@ -4,8 +4,9 @@
  * Speaks the documented TypeSafe HTTP contract
  * (https://docs.typesafe.ai/api): POST {state, model, questions} ->
  * {model, answers}. Production route is the OpenRouter decisions endpoint
- * (per the platform receipt): JEV_DECISIONS_URL, JEV_MODEL, OPENROUTER_API_KEY
- * live only in Convex's server environment, never in client bundles.
+ * (per the platform receipt): JEV_DECISIONS_URL, JEV_MODEL,
+ * JEV_OPENROUTER_API_KEY live only in Convex's server environment, never in
+ * client bundles.
  *
  * Fail closed: any unreadable answer, HTTP error, timeout, or network failure
  * raises JudgeUnavailableError. No caller may fabricate a score on failure.
@@ -47,7 +48,7 @@ export function readJudgeConfig(
   env: Record<string, string | undefined>,
 ): JudgeConfig | null {
   const url = env.JEV_DECISIONS_URL;
-  const apiKey = env.OPENROUTER_API_KEY;
+  const apiKey = env.JEV_OPENROUTER_API_KEY;
   const model = env.JEV_MODEL;
   if (!url || !apiKey || !model) return null;
   let parsed: URL;
