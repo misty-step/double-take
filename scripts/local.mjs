@@ -22,18 +22,22 @@ const JUDGE_DEFAULTS = {
   JEV_MODEL: "typesafe/jev-1.13",
   JEV_DECISIONS_URL: "https://openrouter.ai/api/alpha/decisions",
 };
-const JUDGE_KEYS = ["OPENROUTER_API_KEY", ...Object.keys(JUDGE_DEFAULTS)];
+const JUDGE_KEYS = [
+  "OPENROUTER_API_KEY",
+  "JEV_OPENROUTER_API_KEY",
+  ...Object.keys(JUDGE_DEFAULTS),
+];
 
 /**
  * Jev settings for the local backend, from the launching environment only
- * (for example `pass-env run -e OPENROUTER_API_KEY=... -- pnpm dev`). The key is
+ * (for example `pass-env run -e JEV_OPENROUTER_API_KEY=... -- pnpm dev`). The key is
  * never written to .env.local; without it the backend keeps what it already has.
  */
 function judgeSettings() {
-  const key = process.env.OPENROUTER_API_KEY;
+  const key = process.env.JEV_OPENROUTER_API_KEY;
   if (!key) return null;
   return {
-    OPENROUTER_API_KEY: key,
+    JEV_OPENROUTER_API_KEY: key,
     JEV_MODEL: process.env.JEV_MODEL || JUDGE_DEFAULTS.JEV_MODEL,
     JEV_DECISIONS_URL:
       process.env.JEV_DECISIONS_URL || JUDGE_DEFAULTS.JEV_DECISIONS_URL,
@@ -561,7 +565,7 @@ export async function configureBackend(processes, local, backend) {
   console.log(
     judge
       ? `Jev is configured for this local backend (${judge.JEV_MODEL}).`
-      : "Jev keeps whatever key this local backend already has. To set or replace it: pass-env run -e OPENROUTER_API_KEY=workstation/DOUBLETAKE_OPENROUTER_API_KEY -- pnpm dev",
+      : "Jev keeps whatever key this local backend already has. To set or replace it: pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- pnpm dev",
   );
   if (backend.job) {
     const deadline = Date.now() + 120_000;
