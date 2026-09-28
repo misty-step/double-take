@@ -14,13 +14,13 @@ in `pass` and in Convex deployment env.
 
 ## 2. Build
 
-Credentials come from pass through `pass-env`; `.env.pass` lists the entry names
-(Sentry auth token included). The Sentry DSN is public and lives in `wrangler.jsonc`.
+Bind only the credential each command needs from pass; `.env.pass` inventories
+local entry names and must not be passed wholesale to the frontend build.
 Build with source map upload:
 
 ```sh
 SENTRY_ORG=misty-step SENTRY_PROJECT=double-take APP_RELEASE=$(git rev-parse HEAD) \
-  pass-env run -f .env.pass -- pnpm exec opennextjs-cloudflare build
+  pass-env run -e SENTRY_AUTH_TOKEN=workstation/SENTRY_AUTH_TOKEN -- pnpm exec opennextjs-cloudflare build
 ```
 
 ```sh
@@ -60,7 +60,7 @@ pass-env run \
 After setting the key, deploy the backend:
 
 ```sh
-pass-env run -f .env.pass -- pnpm exec convex deploy --yes
+pass-env run -e CONVEX_DEPLOY_KEY=workstation/DOUBLETAKE_CONVEX_DEPLOY_KEY -- pnpm exec convex deploy --yes
 ```
 
 After deploying backend code, smoke a controlled production room with two
