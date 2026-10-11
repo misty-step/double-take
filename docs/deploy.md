@@ -14,23 +14,47 @@ in `pass` and in Convex deployment env.
 
 ## 2. Build
 
+Use a clean release checkout of the reviewed commit, separate from anonymous
+local play. Do not run `pnpm bootstrap` there or carry over its `.env.local`;
+`DOUBLETAKE_LOCAL=true` changes the build's guest-session and monitoring behavior.
+Use the Node and pnpm versions declared in [`package.json`](../package.json).
+
 Bind only the credential each command needs from pass; `.env.pass` inventories
 local entry names and must not be passed wholesale to the frontend build.
-Build with source map upload:
-
-```sh
-SENTRY_ORG=misty-step SENTRY_PROJECT=double-take APP_RELEASE=$(git rev-parse HEAD) \
-  pass-env run -e SENTRY_AUTH_TOKEN=workstation/SENTRY_AUTH_TOKEN -- pnpm exec opennextjs-cloudflare build
-```
+Install and run the repository checks first:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm check            # build:parlor + typecheck + tests
-pnpm build            # build:parlor + next build  (produces .open-next)
+pnpm check            # Parlor build, format, lint, typecheck, and tests
 ```
 
-`NEXT_PUBLIC_CONVEX_URL` and `NEXT_PUBLIC_CONVEX_SITE_URL` are baked at build time
-and must point at the Convex deployment above.
+Before building, set `NEXT_PUBLIC_CONVEX_URL` and
+`NEXT_PUBLIC_CONVEX_SITE_URL` to the production deployment in section 1, and
+`NEXT_PUBLIC_SENTRY_DSN` to the configured public DSN in
+[`wrangler.jsonc`](../wrangler.jsonc). These values are baked into the browser
+bundle; runtime Worker variables cannot repair an incorrectly built client.
+
+Build the Cloudflare artifact with production attribution and source-map upload:
+
+```sh
+: "${NEXT_PUBLIC_CONVEX_URL:?Set the production Convex URL}"
+: "${NEXT_PUBLIC_CONVEX_SITE_URL:?Set the production Convex site URL}"
+: "${NEXT_PUBLIC_SENTRY_DSN:?Set the configured public Sentry DSN}"
+export NEXT_PUBLIC_CONVEX_URL NEXT_PUBLIC_CONVEX_SITE_URL NEXT_PUBLIC_SENTRY_DSN
+APP_ENVIRONMENT=production APP_RELEASE="$(git rev-parse HEAD)" \
+  SENTRY_ORG=misty-step SENTRY_PROJECT=double-take \
+  pass-env run -e SENTRY_AUTH_TOKEN=workstation/SENTRY_AUTH_TOKEN -- \
+  pnpm exec opennextjs-cloudflare build
+test -f .open-next/worker.js
+test -d .open-next/assets
+```
+
+The [OpenNext build command](https://opennext.js.org/cloudflare/cli) invokes the
+package's `build` script (Parlor build plus `next build`), then adapts that output
+for Cloudflare. `pnpm build` alone produces the Next.js `.next` output, not the
+`.open-next/worker.js` and `.open-next/assets` required by Wrangler. The artifact
+checks above confirm paths exist; they do not prove source-map upload, deployed
+health, or a successful player journey. Record those release readbacks separately.
 
 ## 3. Backend deploy
 
@@ -73,19 +97,29 @@ backend with only a generic key, not by disabling the production key. Do not
 run `judge:probe` or the pair battery as a production smoke: both make multiple
 paid Jev requests.
 
-## 4. Worker env (web server only)
+## 4. Frontend configuration boundaries
 
-These stay on the Worker. They never go into the client bundle or the browser.
+Private Worker runtime secrets, never included in the browser bundle:
 
-- `PARLOR_GUEST_TOKEN_AUDIENCE=doubletake`
 - `PARLOR_GUEST_TOKEN_KEYS` (same key ring as the backend)
 - `DOUBLETAKE_CONTINUITY_SECRET` — `pass` label `workstation/DOUBLETAKE_PARLOR_CONTINUITY_SECRET`.
-- `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL` — public, baked at build.
+
+Worker runtime configuration (not secret):
+
+- `PARLOR_GUEST_TOKEN_AUDIENCE=doubletake`
 - `APP_ENVIRONMENT=production`
 - `APP_RELEASE` — the exact 40-character candidate commit SHA.
-- `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` — the `double-take` project DSN.
-- `SENTRY_ORG=misty-step`, `SENTRY_PROJECT=double-take`, and `SENTRY_AUTH_TOKEN`
-  during the build that uploads source maps. The auth token is never a Worker runtime variable.
+- `SENTRY_DSN` — the public `double-take` project DSN used by server monitoring.
+
+Public browser build inputs are `NEXT_PUBLIC_CONVEX_URL`,
+`NEXT_PUBLIC_CONVEX_SITE_URL`, and `NEXT_PUBLIC_SENTRY_DSN`. Section 2 supplies
+these plus `APP_ENVIRONMENT` and `APP_RELEASE`; `next.config.ts` exposes the
+attribution as `NEXT_PUBLIC_APP_ENVIRONMENT` and `NEXT_PUBLIC_APP_RELEASE`.
+These values intentionally reach the browser.
+
+Source-map upload uses `SENTRY_ORG=misty-step`, `SENTRY_PROJECT=double-take`, and
+the private `SENTRY_AUTH_TOKEN` only during the build. The upload token is neither
+a Worker runtime variable nor a browser build input.
 
 `APP_ENVIRONMENT`, `PRODUCT_ENVIRONMENT`, and the Sentry project environment must
 agree. The SDK sends no default PII, removes request payloads, query strings,
@@ -106,9 +140,11 @@ surfaces an explicit "Start as a new guest" recovery card.
 ## 5. Required checks before release
 
 1. Exact-head CI: `.github/workflows/ci.yml` runs `pnpm install --frozen-lockfile`,
-   `pnpm check` (parlor build + typecheck + tests) and `pnpm build` on every PR and
-   `main` push. No secrets are wired into CI. The release owner records the check run
-   for the merged head.
+   `pnpm check` (Parlor build, format, lint, typecheck, and tests), then
+   `pnpm build:web` (`next build`) on every PR and `master` push. No secrets are
+   wired into CI. The release owner records the check run for the merged head.
+   This workflow does not build the OpenNext artifact, upload source maps, or
+   deploy either service; a green run alone is not release verification.
 2. Independent review verdict PASS on the implementation card.
 3. Candidate browser evidence (see `evidence/`) plus production two-client journey.
 4. `GET /api/health` returns 200 with the exact release and reports the Convex
@@ -121,14 +157,27 @@ surfaces an explicit "Start as a new guest" recovery card.
 
 ## 6. Rollback
 
-- Frontend: `npx wrangler rollback` to the previous Worker version, or redeploy the
-  previous commit.
-- Backend: `npx convex deploy` from the previous good commit. No user data is held yet.
-- Hostname: remove the route and redeploy; Cloudflare removes the sentinel record.
+Rollback is an explicit release-owner operation. Retain the known-good source
+commit, Worker version, and release evidence before changing either service.
 
-## 7. QA environment used for candidate verification
+- Frontend: select the known-good Worker version for `pnpm exec wrangler rollback`,
+  or rebuild the previous commit through section 2 before redeploying it. Confirm
+  the restored client and backend remain compatible and repeat the health and
+  player-journey readbacks. Do not change the hostname route as a code rollback.
+- Backend: assess the previous code and schema against the data currently stored
+  before considering a redeploy. [`convex/schema.ts`](../convex/schema.ts) includes
+  rooms/players through Parlor, games, rounds, player submission text,
+  adjudications, and product events. Redeploying an older commit is not a data
+  restore and must not assume an empty database or erase newer player data.
+- Data recovery is separate from code rollback. This guide does not establish a
+  verified backup or restore procedure; obtain an operator-approved recovery plan
+  if the incident requires one.
 
-- App served from task-owned VM `doubletake-qa-2f3bbf3d.exe.xyz` (private, ephemeral;
-  remove after QA).
-- Backend: the deployment above. No production host existed at candidate time.
-- Cleanup: `ssh exe.dev rm doubletake-qa-2f3bbf3d`.
+## 7. Historical candidate verification
+
+The earlier candidate used the private, ephemeral VM
+`doubletake-qa-2f3bbf3d.exe.xyz` with the backend named in section 1, before a
+production frontend hostname existed. This is historical context, not a current
+QA target or an instruction to reuse or delete that VM. Verify the current
+environment owner and use an explicitly selected candidate environment; local
+tests use the anonymous backend described in the [README](../README.md).
