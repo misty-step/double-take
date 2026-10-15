@@ -1,6 +1,6 @@
 # Continuous frontend delivery
 
-Status: accepted implementation proposal.
+Status: accepted.
 
 Double Take follows the [foundations](https://foundations.mistystep.io/) and the
 [single release convention](https://github.com/misty-step/harness/blob/master/docs/release-convention.md).
@@ -31,5 +31,5 @@ tests and packaged guest/health journey are concrete coverage, not a claim of
 complete specification verification. No production room or paid judge request
 is needed for this frontend-only delivery change.
 
-Semantic versioning and generated user-facing release notes are the next
-independently shipped slice; this first slice changes delivery only.
+Semantic versioning and generated notes are a separately shipped adoption,
+recorded in [ADR002](002-generated-releases.md).

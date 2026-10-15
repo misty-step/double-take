@@ -1,6 +1,6 @@
 # Generated frontend releases
 
-Status: accepted implementation proposal.
+Status: accepted.
 
 The frontend adopts the [single release convention](https://github.com/misty-step/harness/blob/master/docs/release-convention.md)
 and [foundations](https://foundations.mistystep.io/). The Convex backend remains
