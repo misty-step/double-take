@@ -6,15 +6,17 @@ The frontend adopts the [single release convention](https://github.com/misty-ste
 and [foundations](https://foundations.mistystep.io/). The Convex backend remains
 outside this frontend release unit and its code/data lifecycle is unchanged.
 
-There are no existing tags or GitHub Releases. We deliberately choose 0.1.0 as
+At adoption there were no tags or GitHub Releases. We deliberately choose 0.1.0 as
 this adoption's starting baseline, at reviewed delivery commit
 `a5526d63fc1be4499ce4ea8f4c87e42d01c0eeda`; this is not inferred historical
 release evidence and does not fabricate or retag a previous release. The
-manifest seed and bootstrap SHA record that one-time decision. The first
+one-time `v0.1.0` adoption anchor points to that already-deployed source so
+generated compare links resolve; it is not an invented historical GitHub Release.
+The manifest seed and bootstrap SHA record that one-time decision. The first
 user-facing feature earns 0.2.0; the generator's default breaking policy takes
 0.x to 1.0.0, proven with the actual pinned engine.
 
-There is one generator: release-please-action v5.0.0 at full SHA
+From this seed onward there is one generator: release-please-action v5.0.0 at full SHA
 `45996ed1f6d02564a971a2fa1b5860e934307cf7` (bundled release-please 17.6.0), Node
 strategy. It owns package.json version, the manifest, CHANGELOG.md, immutable
 tags and GitHub Release notes. No second notes file or browser GitHub API exists.
