@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { readFileSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 import { withSentryConfig } from "@sentry/nextjs";
 import { resolveRuntimeAttribution } from "./lib/runtime-config";
@@ -13,6 +14,8 @@ try {
 
 const clientEnv: Record<string, string> = {
   NEXT_PUBLIC_DOUBLETAKE_LOCAL: localMode ? "true" : "false",
+  // Public canonical notes are compiled into this revision, not read by Workers.
+  DOUBLETAKE_CHANGELOG: readFileSync("CHANGELOG.md", "utf8"),
 };
 if (attribution) {
   clientEnv.NEXT_PUBLIC_APP_ENVIRONMENT = attribution.environment;

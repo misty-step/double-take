@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { readFileSync } from "node:fs";
+
 import Markdown from "react-markdown";
 import { version } from "../../package.json";
 import "./changelog.css";
@@ -8,7 +8,8 @@ export const dynamic = "force-static";
 export const metadata: Metadata = { title: "Changelog — Double Take" };
 
 export default function Changelog() {
-  const notes = readFileSync("CHANGELOG.md", "utf8");
+  const notes = process.env.DOUBLETAKE_CHANGELOG;
+  if (!notes) throw new Error("Build-time changelog is missing");
   return (
     <div className="release-page">
       <nav aria-label="Double Take" className="release-bar">
