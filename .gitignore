@@ -11,3 +11,8 @@ test-results/
 playwright-report/
 .open-next/
 .wrangler/
+.worker/
+wrangler.artifact.json
+wrangler.preview.json
+deployment.json
+preview-rollback.json
