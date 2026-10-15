@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { probe } from "./smoke-worker.mjs";
+import { restoreWorkerVersion } from "./rollback-worker.mjs";
 
-const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
+const config = JSON.parse(readFileSync("wrangler.artifact.json", "utf8"));
 assert.match(process.env.GITHUB_RUN_ID, /^\d+$/);
 const name = `double-take-cd-${process.env.GITHUB_RUN_ID}`;
 const base = `https://api.cloudflare.com/client/v4/accounts/${config.account_id}/workers`;
@@ -58,30 +61,48 @@ async function verify(expected) {
   for (let attempt = 0; ; attempt++) {
     try {
       await probe(origin, process.env.APP_RELEASE);
-      return;
+      break;
     } catch (error) {
       if (attempt === 11) throw error;
       await setTimeout(5000);
     }
   }
+  const response = await fetch(`${base}/scripts/${name}/content/v2`, {
+    headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  assert.equal(response.status, 200);
+  const hashes = {};
+  for (const [moduleName, contents] of await response.formData()) {
+    assert.equal(typeof contents, "object");
+    const filename = basename(moduleName);
+    const local = createHash("sha256")
+      .update(readFileSync(join(dirname(config.main), filename)))
+      .digest("hex");
+    const remote = createHash("sha256")
+      .update(Buffer.from(await contents.arrayBuffer()))
+      .digest("hex");
+    assert.equal(remote, local, `Uploaded module bytes: ${filename}`);
+    hashes[filename] = remote;
+  }
+  assert.ok(hashes[basename(config.main)], "Provider returned the main module");
+  return hashes;
 }
 let proofError;
 try {
   wrangler("deploy");
   const first = await version();
-  await verify(first);
+  const moduleHashes = await verify(first);
   // Same tested code, distinct provider version/configuration; no second build.
   wrangler("deploy", "--var", "ROLLBACK_PROOF_GENERATION:second");
   const second = await version();
   assert.notEqual(second, first);
   await verify(second);
-  wrangler(
-    "rollback",
-    first,
-    "--yes",
-    "--message",
-    "Isolated native code rollback rehearsal",
-  );
+  await restoreWorkerVersion({
+    api: `${base}/scripts/${name}`,
+    token: process.env.CLOUDFLARE_API_TOKEN,
+    version: first,
+  });
   await verify(first);
   writeFileSync(
     "preview-rollback.json",
@@ -92,6 +113,7 @@ try {
         first,
         second,
         restored: first,
+        moduleHashes,
         release: process.env.APP_RELEASE,
       },
       null,

@@ -23,19 +23,24 @@ CI is the only production frontend deploy path. Repository secrets are
 pnpm install --frozen-lockfile
 pnpm check            # build:parlor + typecheck + tests
 APP_ENVIRONMENT=production APP_RELEASE=$(git rev-parse HEAD) node scripts/build-worker.mjs
-APP_RELEASE=$(git rev-parse HEAD) node scripts/smoke-worker.mjs
 ```
 
 The build reads public URLs and DSNs from `wrangler.jsonc`. OpenNext (not
-`pnpm build` alone) produces `.open-next/worker.js` and assets. The local smoke
-runs that package in workerd with synthetic signing keys; its backend probe is
-GET-only and it creates no game room or paid judgment.
+`pnpm build` alone) produces the intermediate package. A production dry-run
+finalizes `.worker/worker.js` and binary modules once; `wrangler.artifact.json`
+sets `no_bundle: true` for all subsequent uploads.
 
-On each `master` push, CI checks, builds once with source-map upload, smokes the
-package, and uploads `worker-<SHA>` plus its SHA256. The serialized deploy job
-downloads that exact artifact, checks its hash and that source is still current
-`master`, and promotes it without rebuilding. Existing Worker signing secrets
-are retained. `deployment-<SHA>` records the previous and new provider versions.
+On each `master` push, CI checks, builds once with source-map upload and uploads
+`worker-<SHA>` plus its SHA256. Before promotion, the serialized deploy job tests
+that exact final artifact on a unique disposable Cloudflare Worker with synthetic
+signing keys and no custom domain. It proves home/health/guest/cross-origin
+behavior, compares every provider module hash to the archived bytes, exercises
+native unforced rollback and verifies cleanup404. The backend probe is GET-only;
+no room or paid judgment is created. Same-repository PRs run the same rehearsal.
+
+Only then does promotion check current `master` and upload the same bytes with
+no rebundling. Existing Worker signing secrets are retained. `deployment-<SHA>`
+records the previous and new provider versions.
 
 ## 3. Backend deploy
 
@@ -133,6 +138,8 @@ surfaces an explicit "Start as a new guest" recovery card.
   verifies provider identity plus public home, exact-release health, guest
   issuance and cross-origin refusal. A failed deployment automatically performs
   this recovery to the version captured before promotion and still fails loudly.
+  Changed-secret or incompatible-binding refusals fail closed: rollback never
+  passes `force=true` or replaces signing secrets to make an old version fit.
 - A frontend rollback restores code/configuration, not Convex code, data,
   credentials or DNS. Do not redeploy an old source tree as a substitute for
   selecting the previous immutable Worker version.

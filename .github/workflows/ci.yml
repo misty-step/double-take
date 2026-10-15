@@ -36,13 +36,9 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" = push ]; then test -n "$SENTRY_AUTH_TOKEN"; fi
           node scripts/build-worker.mjs
-      - name: Exercise the packaged Worker
-        env:
-          APP_RELEASE: ${{ github.sha }}
-        run: node scripts/smoke-worker.mjs
-      - name: Package the tested artifact
+      - name: Package the finalized artifact
         run: |
-          tar -czf worker.tar.gz .open-next wrangler.jsonc
+          tar -czf worker.tar.gz .worker .open-next/assets wrangler.artifact.json wrangler.jsonc
           sha256sum worker.tar.gz > worker.tar.gz.sha256
       - uses: actions/upload-artifact@v4
         with:
@@ -116,6 +112,7 @@ jobs:
         run: |
           sha256sum --check worker.tar.gz.sha256
           tar -xzf worker.tar.gz
+          node scripts/prove-rollback.mjs
           node scripts/deploy-worker.mjs
       - uses: actions/upload-artifact@v4
         if: always()

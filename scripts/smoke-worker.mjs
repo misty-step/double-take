@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { createServer } from "node:net";
-import { setTimeout } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 export async function probe(origin, release) {
@@ -37,54 +34,5 @@ export async function probe(origin, release) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const reservation = createServer();
-  await new Promise((resolve) => reservation.listen(0, "127.0.0.1", resolve));
-  const port = reservation.address().port;
-  await new Promise((resolve) => reservation.close(resolve));
-  const origin = `http://127.0.0.1:${port}`;
-  const child = spawn(
-    "pnpm",
-    [
-      "exec",
-      "wrangler",
-      "dev",
-      "--local",
-      "--ip",
-      "127.0.0.1",
-      "--port",
-      String(port),
-      "--inspector-port",
-      "0",
-      "--var",
-      "APP_ENVIRONMENT:production",
-      "--var",
-      `APP_RELEASE:${process.env.APP_RELEASE}`,
-      "--var",
-      `PARLOR_GUEST_TOKEN_KEYS:${JSON.stringify({ preview: Buffer.alloc(32, 1).toString("base64url") })}`,
-      "--var",
-      `DOUBLETAKE_CONTINUITY_SECRET:${Buffer.alloc(32, 2).toString("base64url")}`,
-    ],
-    { stdio: "inherit", detached: true },
-  );
-  try {
-    let ready = false;
-    for (let attempt = 0; attempt < 60; attempt++) {
-      if (child.exitCode !== null)
-        throw new Error("Worker exited before readiness");
-      try {
-        const response = await fetch(origin, {
-          signal: AbortSignal.timeout(1000),
-        });
-        assert.equal(response.status, 200);
-        ready = true;
-        break;
-      } catch {
-        await setTimeout(1000);
-      }
-    }
-    assert.ok(ready, "Worker did not become ready");
-    await probe(origin, process.env.APP_RELEASE);
-  } finally {
-    process.kill(-child.pid, "SIGTERM");
-  }
+  await probe(process.argv[2], process.argv[3]);
 }

@@ -8,8 +8,11 @@ This decision records only local boundaries.
 
 The Cloudflare frontend is one deployable unit. The existing CI owns its only
 production promotion path: Node 22.23.2, pnpm 11.25.0, frozen lockfile, existing
-checks, OpenNext build, workerd smoke, immutable Actions artifact, serialized
-promotion and provider/HTTP readback. Signing secrets remain provider-owned.
+checks, one finalized production bundle, immutable Actions artifact, isolated
+Cloudflare smoke/rollback, serialized promotion and provider/HTTP readback. All
+uploads use no-bundle mode; native content readback proves each module's hash.
+Signing secrets remain provider-owned, and changed-secret rollback refusals are
+never forced.
 The shared narrow Cloudflare CD credential and the existing Sentry upload token
 are repository bindings; neither is shipped in the artifact.
 
@@ -23,7 +26,7 @@ record exact-head CI and independent review before squash merging. A final
 current-master read prevents an older completed build from replacing newer code.
 
 SPEC.md is absent. USER_STORIES.md contains an explicitly proposed story, not an
-accepted specification. This is a recorded spec gap; the existing 77 application
+accepted specification. This is a recorded spec gap; the existing 79 application
 tests and packaged guest/health journey are concrete coverage, not a claim of
 complete specification verification. No production room or paid judge request
 is needed for this frontend-only delivery change.

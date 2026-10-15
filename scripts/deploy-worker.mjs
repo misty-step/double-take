@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { setTimeout } from "node:timers/promises";
 import { probe } from "./smoke-worker.mjs";
+import { restoreWorkerVersion } from "./rollback-worker.mjs";
 
 const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
 const api = `https://api.cloudflare.com/client/v4/accounts/${config.account_id}/workers/scripts/${config.name}`;
@@ -43,20 +44,12 @@ async function readback(version, release) {
     }
   }
 }
-function rollback(version) {
-  execFileSync(
-    "pnpm",
-    [
-      "exec",
-      "wrangler",
-      "rollback",
-      version,
-      "--yes",
-      "--message",
-      "Restore previous verified code; backend state unchanged",
-    ],
-    { stdio: "inherit" },
-  );
+async function rollback(version) {
+  await restoreWorkerVersion({
+    api,
+    token: process.env.CLOUDFLARE_API_TOKEN,
+    version,
+  });
 }
 const previous = await currentVersion();
 const previousRelease = await versionRelease(previous);
@@ -66,7 +59,7 @@ try {
     const target = process.env.ROLLBACK_VERSION;
     assert.match(target, /^[0-9a-f-]{36}$/);
     const release = await versionRelease(target);
-    rollback(target);
+    await rollback(target);
     await readback(target, release);
     Object.assign(receipt, { restored: target, release });
   } else {
@@ -94,6 +87,8 @@ try {
           "exec",
           "wrangler",
           "deploy",
+          "--config",
+          "wrangler.artifact.json",
           "--keep-vars",
           "--var",
           "APP_ENVIRONMENT:production",
@@ -108,7 +103,7 @@ try {
       await readback(deployed, release);
       Object.assign(receipt, { deployed, release });
     } catch (error) {
-      rollback(previous);
+      await rollback(previous);
       await readback(previous, previousRelease);
       receipt.restored = previous;
       throw error;
