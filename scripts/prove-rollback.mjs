@@ -65,6 +65,7 @@ async function verify(expected) {
     }
   }
 }
+let proofError;
 try {
   wrangler("deploy");
   const first = await version();
@@ -97,6 +98,8 @@ try {
       2,
     ) + "\n",
   );
+} catch (error) {
+  proofError = error;
 } finally {
   // Wrangler delete probes unrelated KV namespaces. Delete only our Worker via
   // the provider API instead of broadening the shared credential for cleanup.
@@ -105,10 +108,16 @@ try {
     headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
     signal: AbortSignal.timeout(20_000),
   });
-  assert.equal(removed.status, 200, "Delete the run-owned preview only");
   const absent = await fetch(`${base}/scripts/${name}`, {
     headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
     signal: AbortSignal.timeout(20_000),
   });
+  if (proofError)
+    console.error("Rollback rehearsal failed before cleanup:", proofError);
+  assert.ok(
+    removed.status === 200 || removed.status === 404,
+    "Delete the run-owned preview only",
+  );
   assert.equal(absent.status, 404, "Preview cleanup readback");
 }
+if (proofError) throw proofError;
