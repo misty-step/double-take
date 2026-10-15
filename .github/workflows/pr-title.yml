@@ -1,0 +1,14 @@
+name: Conventional title
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+permissions: {}
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate only the title, never execute it
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node -e 'if (!/^(feat|fix|perf|revert|docs|style|refactor|test|build|ci|chore)(\([a-zA-Z0-9._/-]+\))?!?: \S[^\r\n]*$/.test(process.env.TITLE)) { console.error("Use a public, user-facing Conventional Commit title"); process.exit(1); }'
