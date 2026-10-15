@@ -25,10 +25,11 @@ existing type system; navigation is on the home screen, never a one-tap exit
 from a room. Health imports the same package version beside the exact SHA.
 
 Metadata automation follows successful default-branch CI, separately from CD,
-and rejects superseded source or a missing baseline commit. The existing
-GH_RELEASE_TOKEN may open ordinary CI-triggering release PRs; GITHUB_TOKEN is
-its native fallback, with exact-head native-run approval by the merging agent
-where GitHub requires it. No new credential or default-branch bypass is used.
+and rejects superseded source or a missing baseline commit. The action uses its
+native, repository-scoped GITHUB_TOKEN, with exact-head native-run approval by
+the merging agent where GitHub requires it. The inherited GH_RELEASE_TOKEN
+cannot write this repository (native branch creation returned 404), so it is
+not selected. No new credential or default-branch bypass is used.
 Generated-only PRs merge after exact-head CI and an agent version/notes readback,
 without a second code-review ceremony. Squash merging explicitly uses the PR
 title and an empty body; repository branch-protection settings remain unchanged
