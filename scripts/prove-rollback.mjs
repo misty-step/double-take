@@ -36,6 +36,9 @@ Object.assign(config, {
     ...config.vars,
     APP_ENVIRONMENT: "production",
     APP_RELEASE: process.env.APP_RELEASE,
+    // Synthetic server probes must not create production error telemetry.
+    SENTRY_DSN: "",
+    NEXT_PUBLIC_SENTRY_DSN: "",
     PARLOR_GUEST_TOKEN_KEYS: JSON.stringify({
       preview: Buffer.alloc(32, 1).toString("base64url"),
     }),

@@ -1,3 +1,5 @@
+import { version } from "../package.json";
+
 export type BackendHealth = {
   status: "ok";
   service: "double-take-backend";
@@ -38,6 +40,7 @@ export function buildHealthPayload({
   return {
     status: "ok" as const,
     service: "double-take" as const,
+    version,
     environment,
     release,
     checkedAt,

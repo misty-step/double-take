@@ -417,6 +417,14 @@ h1.title {
   font-size: 20px;
   text-align: center;
 }
+.release-nav a {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  color: var(--ink-2);
+  font-size: 14px;
+  text-underline-offset: 4px;
+}
 /* A world's swatch beside its rating word. */
 .rating {
   display: inline-flex;

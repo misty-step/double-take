@@ -13,6 +13,18 @@ export async function probe(origin, release) {
   assert.equal(payload.release, release);
   assert.equal(payload.environment, "production");
   assert.equal(payload.dependencies.backend, "ok");
+  // Older rollback targets predate versioned notes. Every versioned build must
+  // serve its own build-time changelog as part of the same consumer journey.
+  if (payload.version !== undefined) {
+    assert.match(payload.version, /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
+    const notes = await fetch(`${origin}/changelog`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    assert.equal(notes.status, 200);
+    const text = (await notes.text()).replace(/<[^>]*>/g, "");
+    assert.ok(text.includes(`This build · ${payload.version}`));
+    assert.ok(text.includes("Changelog"));
+  }
   const acquire = await fetch(`${origin}/api/guest`, {
     method: "POST",
     headers: { Origin: origin, "Content-Type": "application/json" },

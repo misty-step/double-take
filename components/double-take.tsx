@@ -305,6 +305,9 @@ function Home({
           <button className="btn" onClick={onJoin}>
             Join a game
           </button>
+          <nav aria-label="About Double Take" className="release-nav">
+            <a href="/changelog">Changelog</a>
+          </nav>
         </div>
       </main>
     </>

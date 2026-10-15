@@ -4,6 +4,7 @@ import { createHealthHandler } from "../app/api/health/handler";
 import { redactSentryEvent } from "../lib/sentry-privacy";
 import { resolveSentryOptions } from "../lib/sentry-runtime";
 import { resolveRuntimeAttribution } from "../lib/runtime-config";
+import { version } from "../package.json";
 
 const localEnv = {
   APP_ENVIRONMENT: "test",
@@ -54,6 +55,7 @@ describe("served health handler", () => {
     expect(await response.json()).toEqual({
       status: "ok",
       service: "double-take",
+      version,
       environment: "test",
       release: "local",
       checkedAt: "2026-09-21T12:00:00.000Z",

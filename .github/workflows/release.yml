@@ -1,0 +1,44 @@
+name: Release notes
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+concurrency:
+  group: double-take-release-notes
+  cancel-in-progress: false
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Refuse a missing baseline or superseded verified source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/master" --jq .sha)" = "$SOURCE"
+          BASE=$(node -p 'require("./release-please-config.json")["bootstrap-sha"]')
+          git merge-base --is-ancestor "$BASE" HEAD
+      - name: Generate the one release PR or publish its merged source
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.GH_RELEASE_TOKEN || github.token }}
+          target-branch: master
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - name: Report failure through the existing Sentry incident path
+        if: failure()
+        env:
+          GITHUB_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: node scripts/report-release-failure.mjs

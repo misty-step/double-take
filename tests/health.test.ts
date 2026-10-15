@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildHealthPayload, parseBackendHealth } from "../lib/health";
+import { version } from "../package.json";
 
 describe("health boundary", () => {
   it("accepts only the backend health contract", () => {
@@ -22,6 +23,7 @@ describe("health boundary", () => {
     expect(payload).toEqual({
       status: "ok",
       service: "double-take",
+      version,
       environment: "staging",
       release: "0123456789abcdef0123456789abcdef01234567",
       checkedAt: "2026-09-21T12:00:00.000Z",
