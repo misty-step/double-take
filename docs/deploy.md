@@ -1,8 +1,9 @@
 # Deploy contract — Double Take
 
-Owner of production release: Zoe (card t_0db65fd9). This document is the contract
-between the game code and the release owner. Values are labels only. Secrets live
-in `pass` and in Convex deployment env.
+Frontend promotion and code rollback run through GitHub Actions. Backend code,
+schema and accepted player data are separate; frontend CD never deploys Convex.
+See the [foundations](https://foundations.mistystep.io/) and
+[local release decision](adr/001-continuous-delivery.md).
 
 ## 1. Components
 
@@ -14,23 +15,27 @@ in `pass` and in Convex deployment env.
 
 ## 2. Build
 
-Bind only the credential each command needs from pass; `.env.pass` inventories
-local entry names and must not be passed wholesale to the frontend build.
-Build with source map upload:
-
-```sh
-SENTRY_ORG=misty-step SENTRY_PROJECT=double-take APP_RELEASE=$(git rev-parse HEAD) \
-  pass-env run -e SENTRY_AUTH_TOKEN=workstation/SENTRY_AUTH_TOKEN -- pnpm exec opennextjs-cloudflare build
-```
+CI is the only production frontend deploy path. Repository secrets are
+`CLOUDFLARE_API_TOKEN` (the shared narrow CD token) and `SENTRY_AUTH_TOKEN`
+(build-only source-map upload). Never load `.env.pass` into a frontend build.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm check            # build:parlor + typecheck + tests
-pnpm build            # build:parlor + next build  (produces .open-next)
+APP_ENVIRONMENT=production APP_RELEASE=$(git rev-parse HEAD) node scripts/build-worker.mjs
+APP_RELEASE=$(git rev-parse HEAD) node scripts/smoke-worker.mjs
 ```
 
-`NEXT_PUBLIC_CONVEX_URL` and `NEXT_PUBLIC_CONVEX_SITE_URL` are baked at build time
-and must point at the Convex deployment above.
+The build reads public URLs and DSNs from `wrangler.jsonc`. OpenNext (not
+`pnpm build` alone) produces `.open-next/worker.js` and assets. The local smoke
+runs that package in workerd with synthetic signing keys; its backend probe is
+GET-only and it creates no game room or paid judgment.
+
+On each `master` push, CI checks, builds once with source-map upload, smokes the
+package, and uploads `worker-<SHA>` plus its SHA256. The serialized deploy job
+downloads that exact artifact, checks its hash and that source is still current
+`master`, and promotes it without rebuilding. Existing Worker signing secrets
+are retained. `deployment-<SHA>` records the previous and new provider versions.
 
 ## 3. Backend deploy
 
@@ -75,7 +80,8 @@ paid Jev requests.
 
 ## 4. Worker env (web server only)
 
-These stay on the Worker. They never go into the client bundle or the browser.
+Signing secrets stay on the Worker. Public URLs, attribution and the public
+Sentry DSN may reach the browser; the upload token never does.
 
 - `PARLOR_GUEST_TOKEN_AUDIENCE=doubletake`
 - `PARLOR_GUEST_TOKEN_KEYS` (same key ring as the backend)
@@ -105,10 +111,10 @@ surfaces an explicit "Start as a new guest" recovery card.
 
 ## 5. Required checks before release
 
-1. Exact-head CI: `.github/workflows/ci.yml` runs `pnpm install --frozen-lockfile`,
-   `pnpm check` (parlor build + typecheck + tests) and `pnpm build` on every PR and
-   `main` push. No secrets are wired into CI. The release owner records the check run
-   for the merged head.
+1. Exact-head CI: `.github/workflows/ci.yml` runs frozen install, `pnpm check`,
+   OpenNext build and packaged-Worker smoke on every PR and `master` push.
+   Only default-branch pushes can reach deployment. Failed/skipped checks cannot
+   deploy; a moved default head refuses promotion.
 2. Independent review verdict PASS on the implementation card.
 3. Candidate browser evidence (see `evidence/`) plus production two-client journey.
 4. `GET /api/health` returns 200 with the exact release and reports the Convex
@@ -121,14 +127,25 @@ surfaces an explicit "Start as a new guest" recovery card.
 
 ## 6. Rollback
 
-- Frontend: `npx wrangler rollback` to the previous Worker version, or redeploy the
-  previous commit.
-- Backend: `npx convex deploy` from the previous good commit. No user data is held yet.
-- Hostname: remove the route and redeploy; Cloudflare removes the sentinel record.
+- Frontend: dispatch **Roll back Worker code** on `master` with the previous
+  provider version UUID from the deployment artifact. It shares promotion's
+  concurrency group, selects that existing version without rebuilding, and
+  verifies provider identity plus public home, exact-release health, guest
+  issuance and cross-origin refusal. A failed deployment automatically performs
+  this recovery to the version captured before promotion and still fails loudly.
+- A frontend rollback restores code/configuration, not Convex code, data,
+  credentials or DNS. Do not redeploy an old source tree as a substitute for
+  selecting the previous immutable Worker version.
+- Convex retains rooms, submissions, adjudications and product events. A backend
+  code rollback needs explicit compatibility verification against retained state;
+  never clear tables or assume the database is empty. Data recovery is a separate
+  operation, not part of frontend rollback.
+- CI/CD failures send a bounded error event (run URL and source SHA, no player
+  content) to the existing Double Take Sentry production incident path. Existing
+  external uptime/Sentry watchers remain unchanged.
 
 ## 7. QA environment used for candidate verification
 
-- App served from task-owned VM `doubletake-qa-2f3bbf3d.exe.xyz` (private, ephemeral;
-  remove after QA).
-- Backend: the deployment above. No production host existed at candidate time.
-- Cleanup: `ssh exe.dev rm doubletake-qa-2f3bbf3d`.
+Historical evidence under `evidence/` predates the current live Worker. It is not
+proof of the current candidate and is not an instruction to reuse or delete a VM.
+Current checks run in the isolated workspace and Actions using the pinned runtime.
