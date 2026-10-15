@@ -98,7 +98,14 @@ try {
     ) + "\n",
   );
 } finally {
-  wrangler("delete", name, "--force");
+  // Wrangler delete probes unrelated KV namespaces. Delete only our Worker via
+  // the provider API instead of broadening the shared credential for cleanup.
+  const removed = await fetch(`${base}/scripts/${name}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  assert.equal(removed.status, 200, "Delete the run-owned preview only");
   const absent = await fetch(`${base}/scripts/${name}`, {
     headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
     signal: AbortSignal.timeout(20_000),
