@@ -80,6 +80,41 @@ describe("served health handler", () => {
       /wrong|dsn|token|rubric|confidence/i,
     );
   });
+
+  it("preserves the Worker HTTP prefix and rejects arbitrary/credentialed paths", async () => {
+    const backend = vi.fn(async () =>
+      Response.json({ status: "ok", service: "double-take-backend" }),
+    );
+    const response = await createHealthHandler({
+      fetch: backend as typeof fetch,
+      now: () => new Date(),
+      env: {
+        ...localEnv,
+        NEXT_PUBLIC_CONVEX_SITE_URL:
+          "https://doubletake-preview.mistystep.io/backend/http",
+      },
+    })();
+    expect(response.status).toBe(200);
+    expect(backend).toHaveBeenCalledWith(
+      new URL("https://doubletake-preview.mistystep.io/backend/http/health"),
+      expect.any(Object),
+    );
+    for (const url of [
+      "https://origin.test/foreign",
+      "https://user:password@origin.test/backend/http",
+      "https://origin.test/backend/http?token=no",
+    ]) {
+      expect(
+        (
+          await createHealthHandler({
+            fetch: backend as typeof fetch,
+            now: () => new Date(),
+            env: { ...localEnv, NEXT_PUBLIC_CONVEX_SITE_URL: url },
+          })()
+        ).status,
+      ).toBe(503);
+    }
+  });
 });
 
 describe("Sentry privacy and operations registration", () => {
