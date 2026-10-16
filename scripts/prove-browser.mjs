@@ -29,6 +29,7 @@ export async function proveBrowser(origin, output, options = {}) {
         colorScheme,
         reducedMotion: "reduce",
         extraHTTPHeaders: options.extraHTTPHeaders,
+        serviceWorkers: options.extraHTTPHeaders ? "block" : undefined,
       });
       // A protected preview's service credential must never reach another host.
       if (options.extraHTTPHeaders) {
@@ -36,6 +37,15 @@ export async function proveBrowser(origin, output, options = {}) {
           new URL(route.request().url()).origin === origin
             ? route.continue()
             : route.abort(),
+        );
+        const socketOrigin = new URL(origin);
+        socketOrigin.protocol =
+          socketOrigin.protocol === "https:" ? "wss:" : "ws:";
+        // Only foreign sockets are intercepted/refused. Same-origin sockets
+        // remain real native browser connections, with no mock or proxy.
+        await context.routeWebSocket(
+          (url) => url.origin !== socketOrigin.origin,
+          (socket) => socket.close(),
         );
       }
       contexts.push(context);
