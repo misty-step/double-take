@@ -174,6 +174,16 @@ export async function proveBrowser(origin, output, options = {}) {
       );
     }
     evidence.checkpoints.push("three-round-final-both-browsers-no-overflow");
+    await friend
+      .getByRole("button", { name: "Back to lobby", exact: true })
+      .click();
+    await friend.locator(".code").waitFor();
+    await host.getByRole("button", { name: "Play again", exact: true }).click();
+    for (const page of pages)
+      await page.getByPlaceholder("Write one line for both.").waitFor();
+    evidence.checkpoints.push(
+      "individual-back-to-lobby-and-host-replay-next-cycle",
+    );
     assert.deepEqual(errors, []);
     assert.ok(requests.length > 0);
     assert.deepEqual(

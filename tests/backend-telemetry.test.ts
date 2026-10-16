@@ -29,7 +29,7 @@ describe("backend telemetry", () => {
       expect(text).not.toContain(env.PRIVATE_CANARY);
     }
   });
-  it("contains unavailable and hung sinks and refuses unattributed delivery", async () => {
+  it("contains sink failures, sets a bounded timeout and refuses unattributed delivery", async () => {
     const sink = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit) => {
         throw new Error("sink offline");

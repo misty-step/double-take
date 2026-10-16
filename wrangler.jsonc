@@ -10,6 +10,7 @@
   "preview_urls": false,
   "send_metrics": false,
   "observability": { "enabled": true },
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"

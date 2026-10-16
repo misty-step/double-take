@@ -51,6 +51,23 @@ export async function proveHostedOutage({ api, version, origin }) {
       token: process.env.CLOUDFLARE_API_TOKEN,
       version,
     });
+  async function backendReady(configured) {
+    let health;
+    for (let i = 0; i < 120; i++) {
+      const response = await transport(`${origin}/backend/http/health`);
+      if (response.ok) health = await response.json();
+      if (
+        health?.judgeConfigured === configured &&
+        health?.judgeBindingConfigured === configured &&
+        (!configured || health.workerVersion === version)
+      )
+        return health;
+      await delay(500);
+    }
+    throw new Error(
+      `Backend configuration did not activate: ${JSON.stringify(health)}`,
+    );
+  }
   await operator.freeze(true);
   let deployedFault = false;
   try {
@@ -69,6 +86,7 @@ export async function proveHostedOutage({ api, version, origin }) {
     );
     deployedFault = true;
     await operator.freeze(false);
+    await backendReady(false);
     const host = await guest(),
       friend = await guest();
     const room = await call("mutation", "rooms:createRoom", {
@@ -123,6 +141,7 @@ export async function proveHostedOutage({ api, version, origin }) {
     deployedFault = false;
     assert.deepEqual((await operator.exportSnapshot()).stats, accepted.stats);
     await operator.freeze(false);
+    await backendReady(true);
     assert.equal(
       (
         await call("mutation", "game:submit", {

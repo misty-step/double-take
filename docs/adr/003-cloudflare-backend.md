@@ -1,6 +1,6 @@
 # ADR 003: Double Take backend on the shared Parlor Cloudflare adapter
 
-Status: implementation in progress; not deployed or approved for cutover
+Status: isolated preview deployed; implementation/recovery proof in progress, no production cutover
 Date: 2026-10-16
 
 ## Decision
@@ -72,10 +72,16 @@ SHA-256 binds the actual tested artifact instead of claiming an exact-head CI.
   caller now reconstruct missing judgments/deadlines in 50-document pages,
   refusing a live-job-set overflow instead of hiding a duplicate. Native/adapter
   tests prove repeated pages do not duplicate jobs or mutate user records;
-  finished/inactive matches do not trigger paid judgments. The hosted re-arm and
-  native-source rollback execution remain unproven. In particular the old
-  deployed Convex code does not yet contain this new internal function; do not
-  assume restoring equal user tables re-arms its jobs.
+  finished/inactive matches do not trigger paid judgments. CF re-arm is distinct
+  from native rollback. The old deployment needs no new
+  rescue function: `scripts/recover-native-work.mjs` invokes its existing internal
+  `game:judgeSubmission` actions and `game:closeWriting` mutations after canonical
+  import, while the CF writer stays frozen. It filters inactive/finished matches,
+  waits at most the existing final-player clock, and is safe to repeat. An actual
+  isolated native binary running source `8085f06` imported the synthetic CF-origin
+  snapshot with equal canonical user tables/mappings, recovered one omitted pending
+  judgment/deadline and repeated recovery without scoring twice. No production
+  source deployment, row write, or source unpause was used in that drill.
 - Independent reviewer/Astra technical review precedes production. Preserve reviewed artifact
   identity; the dormant deployment adds a DO class, so a pre-class version is not
   assumed to be a compatible native rollback target.

@@ -21,6 +21,7 @@ type Env = OpenNextEnv &
     readonly APP_ENVIRONMENT?: string;
     readonly APP_RELEASE?: string;
     readonly DOUBLETAKE_PRIVATE_PREVIEW?: string;
+    readonly CF_VERSION_METADATA?: { readonly id: string };
   };
 
 export default {
@@ -56,15 +57,31 @@ export default {
           BACKEND_BASE_PATH,
         );
         if (!response?.ok) throw new Error("Backend unhealthy");
+        const backend = (await response.json()) as Record<string, unknown>;
+        if (
+          backend.judgeConfigured === false ||
+          (backend.release !== undefined &&
+            backend.release !== env.APP_RELEASE) ||
+          (backend.workerVersion !== undefined &&
+            backend.workerVersion !== env.CF_VERSION_METADATA?.id)
+        )
+          throw new Error("Backend identity/configuration mismatch");
         return Response.json(
-          buildHealthPayload({
-            backend: parseBackendHealth(await response.json()),
-            ...resolveRuntimeAttribution({
-              APP_ENVIRONMENT: env.APP_ENVIRONMENT,
-              APP_RELEASE: env.APP_RELEASE,
+          {
+            ...buildHealthPayload({
+              backend: parseBackendHealth(backend),
+              ...resolveRuntimeAttribution({
+                APP_ENVIRONMENT: env.APP_ENVIRONMENT,
+                APP_RELEASE: env.APP_RELEASE,
+              }),
+              checkedAt,
             }),
-            checkedAt,
-          }),
+            workerVersion: env.CF_VERSION_METADATA?.id,
+            backendIdentity: {
+              release: backend.release,
+              workerVersion: backend.workerVersion,
+            },
+          },
           { headers: { "Cache-Control": "no-store" } },
         );
       } catch {
