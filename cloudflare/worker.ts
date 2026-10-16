@@ -10,6 +10,7 @@ import { BACKEND_BASE_PATH } from "./backend";
 import { authorizeOperator, type OperatorEnv } from "./operator";
 import { buildHealthPayload, parseBackendHealth } from "../lib/health";
 import { resolveRuntimeAttribution } from "../lib/runtime-config";
+import { backendSignal } from "../lib/backend-telemetry";
 
 export { DoubleTakeBackend } from "./backend";
 
@@ -73,9 +74,25 @@ export default {
         );
       }
     }
-    return (
-      forwardToBackend(request, env.DOUBLETAKE_BACKEND, BACKEND_BASE_PATH) ??
-      nextWorker.fetch(request, env, ctx)
-    );
+    try {
+      const response = await (forwardToBackend(
+        request,
+        env.DOUBLETAKE_BACKEND,
+        BACKEND_BASE_PATH,
+      ) ?? nextWorker.fetch(request, env, ctx));
+      if (
+        response.status >= 500 &&
+        response.status !== 560 &&
+        response.status !== 503
+      )
+        ctx.waitUntil(backendSignal("request_failed", "error"));
+      return response;
+    } catch {
+      ctx.waitUntil(backendSignal("request_failed", "error"));
+      return new Response(null, {
+        status: 503,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
   },
 };

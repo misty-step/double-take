@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { proveHostedOutage } from "./prove-hosted-outage.mjs";
 
 const config = JSON.parse(readFileSync("wrangler.artifact.json", "utf8"));
 assert.equal(process.env.GITHUB_EVENT_NAME, "pull_request");
@@ -68,6 +69,16 @@ for (const [name, contents] of await (await get("content/v2")).formData()) {
   moduleHashes[basename(name)] = remote;
 }
 assert.ok(moduleHashes[basename(config.main)]);
+const outageProof = await proveHostedOutage({
+  api,
+  version,
+  origin: "https://doubletake-preview.mistystep.io",
+});
+assert.equal(
+  (await (await get("deployments")).json()).result.deployments[0].versions[0]
+    .version_id,
+  version,
+);
 writeFileSync(
   "backend-preview-deployment.json",
   JSON.stringify(
@@ -82,6 +93,7 @@ writeFileSync(
         (b) => b.type === "durable_object_namespace",
       ),
       role: "preview-only",
+      outageProof,
     },
     null,
     2,

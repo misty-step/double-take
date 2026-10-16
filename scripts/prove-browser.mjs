@@ -6,7 +6,7 @@ const { chromium } = await import(
   process.env.DOUBLETAKE_PLAYWRIGHT_MODULE ?? "playwright"
 );
 
-export async function proveBrowser(origin, output) {
+export async function proveBrowser(origin, output, options = {}) {
   mkdirSync(output, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   const requests = [];
@@ -14,7 +14,7 @@ export async function proveBrowser(origin, output) {
   const pages = [];
   const contexts = [];
   const evidence = {
-    mode: "real-loopback-workerd-synthetic-judge",
+    mode: options.mode ?? "real-loopback-workerd-synthetic-judge",
     checkpoints: [],
     requests,
     errors,
@@ -28,7 +28,16 @@ export async function proveBrowser(origin, output) {
         viewport,
         colorScheme,
         reducedMotion: "reduce",
+        extraHTTPHeaders: options.extraHTTPHeaders,
       });
+      // A protected preview's service credential must never reach another host.
+      if (options.extraHTTPHeaders) {
+        await context.route("**/*", (route) =>
+          new URL(route.request().url()).origin === origin
+            ? route.continue()
+            : route.abort(),
+        );
+      }
       contexts.push(context);
       const page = await context.newPage();
       pages.push(page);

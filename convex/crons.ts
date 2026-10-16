@@ -5,7 +5,7 @@ const crons = cronJobs();
 crons.interval(
   "abandon unattended matches",
   { minutes: 1 },
-  internal.maintenance.sweepAbandoned,
+  internal.maintenance.sweepWithHealth,
   {},
 );
 export default crons;

@@ -27,7 +27,7 @@ config.vars = {
   DOUBLETAKE_OPERATOR_MACHINES: machine,
   JEV_MODEL: "typesafe/jev-1.13",
   JEV_DECISIONS_URL: "https://openrouter.ai/api/alpha/decisions",
-  SENTRY_DSN: "",
+  SENTRY_DSN: config.vars.SENTRY_DSN,
   NEXT_PUBLIC_SENTRY_DSN: "",
 };
 writeFileSync("wrangler.backend-preview.json", JSON.stringify(config, null, 2));
