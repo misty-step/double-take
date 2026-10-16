@@ -710,7 +710,10 @@ try {
     if (proveBrowser) {
       const { proveBrowser: browserJourney } =
         await import("./prove-browser.mjs");
-      await browserJourney(origin, ".wrangler/browser-screens");
+      await browserJourney(origin, ".wrangler/browser-screens", {
+        // Exercise protected-context HTTP/WS egress controls without a secret.
+        extraHTTPHeaders: { "x-loopback-proof": "synthetic" },
+      });
       passed(
         "two real desktop/mobile browser guests complete three rounds, private writing, reload continuity and final; no Convex traffic",
       );
