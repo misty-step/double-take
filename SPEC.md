@@ -47,6 +47,13 @@ surfaces are private; they are not a reason to put public players behind Access.
 The replacement backend must run the existing game protocol and rules without
 requiring new player identities.
 
+Operator access requires a verified application assertion and a separate backend
+key. Human assertions need an exact approved nonempty subject; named machines
+may have an empty subject only with their exact signed Client ID. Issuer,
+application audience, signature, token type and validity window must match.
+Unknown identities, supplied identity headers and preview identities on
+production confer no authority. Public player access does not require Access.
+
 A cutover has one writer. A consistent encrypted snapshot is hash-verified in
 private storage and restored in isolation before import. Canonical records,
 IDs, creation times, references, and table mappings reconcile, not database-file

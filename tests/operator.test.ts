@@ -14,6 +14,7 @@ const env = {
   DOUBLETAKE_ACCESS_ISSUER: issuer,
   DOUBLETAKE_ACCESS_AUD: "synthetic-app-audience",
   DOUBLETAKE_OPERATOR_SUBJECTS: "approved-operator",
+  DOUBLETAKE_OPERATOR_MACHINES: "preview-verifier.access",
 };
 function request(claims: Record<string, unknown> = {}, corrupt = false) {
   const header = Buffer.from(
@@ -24,6 +25,7 @@ function request(claims: Record<string, unknown> = {}, corrupt = false) {
       iss: issuer,
       aud: [env.DOUBLETAKE_ACCESS_AUD],
       sub: "approved-operator",
+      type: "app",
       exp: Date.now() / 1000 + 60,
       ...claims,
     }),
@@ -42,7 +44,7 @@ function request(claims: Record<string, unknown> = {}, corrupt = false) {
 }
 afterEach(() => vi.unstubAllGlobals());
 describe("operator origin authorization", () => {
-  it("checks signed issuer/audience/expiry and exact subject, denying empty-sub service assertions under the current ruling", async () => {
+  it("checks signed application identity and keeps preview machine roles out of production", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => Response.json({ keys: [jwk] })),
@@ -54,13 +56,35 @@ describe("operator origin authorization", () => {
       ),
     ).toBe(false);
     expect(await authorizeOperator(request(), env)).toBe(true);
+    const machine = request({
+      sub: "",
+      common_name: "preview-verifier.access",
+    });
+    expect(await authorizeOperator(machine, env)).toBe(true);
+    expect(
+      await authorizeOperator(machine, {
+        ...env,
+        DOUBLETAKE_ACCESS_AUD: "production-app-audience",
+      }),
+    ).toBe(false);
+    expect(
+      await authorizeOperator(machine, {
+        ...env,
+        DOUBLETAKE_OPERATOR_MACHINES: "production-operator.access",
+      }),
+    ).toBe(false);
     for (const claims of [
       { sub: "unknown" },
       { sub: "", common_name: "named-service.access" },
       { sub: "" },
+      { sub: null, common_name: "preview-verifier.access" },
+      { common_name: "preview-verifier.access" },
+      { type: "org" },
+      { type: null },
       { aud: ["foreign-app"] },
       { iss: "https://foreign-issuer.test" },
       { exp: 0 },
+      { nbf: Date.now() / 1000 + 300 },
     ]) {
       expect(await authorizeOperator(request(claims), env)).toBe(false);
     }
@@ -69,6 +93,7 @@ describe("operator origin authorization", () => {
       await authorizeOperator(request(), {
         ...env,
         DOUBLETAKE_OPERATOR_SUBJECTS: "",
+        DOUBLETAKE_OPERATOR_MACHINES: "",
       }),
     ).toBe(false);
   });

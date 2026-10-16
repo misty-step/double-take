@@ -5,6 +5,8 @@ export type OperatorEnv = {
   readonly DOUBLETAKE_ACCESS_AUD?: string;
   /** Exact verified subjects; never infer authority from a supplied header. */
   readonly DOUBLETAKE_OPERATOR_SUBJECTS?: string;
+  /** Exact signed service-token Client IDs, scoped to this application/role. */
+  readonly DOUBLETAKE_OPERATOR_MACHINES?: string;
 };
 
 const verifiers = new Map<string, TokenVerifier>();
@@ -18,12 +20,14 @@ export async function authorizeOperator(
   const audience = env.DOUBLETAKE_ACCESS_AUD;
   const subjects =
     env.DOUBLETAKE_OPERATOR_SUBJECTS?.split(",").filter(Boolean) ?? [];
+  const machines =
+    env.DOUBLETAKE_OPERATOR_MACHINES?.split(",").filter(Boolean) ?? [];
   const token = request.headers.get("Cf-Access-Jwt-Assertion");
   if (
     !issuer ||
     !audience ||
     !token ||
-    subjects.length === 0 ||
+    (subjects.length === 0 && machines.length === 0) ||
     token.length > 16_384
   )
     return false;
@@ -50,7 +54,18 @@ export async function authorizeOperator(
       verifiers.set(key, verifier);
     }
     const { identity } = await verifier.verify(token);
-    return identity.subject.length > 0 && subjects.includes(identity.subject);
+    // Access org-session tokens are not application assertions. Custom claims
+    // below come only from the signature-verified payload, never identity headers.
+    if (identity.type !== "app" || identity.issuer !== issuer) return false;
+    if (identity.subject === "") {
+      return (
+        typeof identity.common_name === "string" &&
+        machines.includes(identity.common_name)
+      );
+    }
+    return (
+      identity.common_name === undefined && subjects.includes(identity.subject)
+    );
   } catch {
     return false;
   }

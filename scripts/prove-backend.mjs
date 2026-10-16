@@ -105,8 +105,11 @@ if (proveBrowser) {
 const operatorIssuer = `http://127.0.0.1:${judge.address().port}`;
 const jwtPart = (value) =>
   Buffer.from(JSON.stringify(value)).toString("base64url");
-const jwtInput = `${jwtPart({ alg: "RS256", kid: operatorJwk.kid })}.${jwtPart({ iss: operatorIssuer, sub: "loopback-operator", aud: ["loopback-preview"], exp: Date.now() / 1000 + 600 })}`;
-const operatorJwt = `${jwtInput}.${sign("RSA-SHA256", Buffer.from(jwtInput), operatorKey.privateKey).toString("base64url")}`;
+function assertion(claims = {}) {
+  const input = `${jwtPart({ alg: "RS256", kid: operatorJwk.kid })}.${jwtPart({ iss: operatorIssuer, type: "app", sub: "loopback-operator", aud: ["loopback-preview"], exp: Date.now() / 1000 + 600, ...claims })}`;
+  return `${input}.${sign("RSA-SHA256", Buffer.from(input), operatorKey.privateKey).toString("base64url")}`;
+}
+const operatorJwt = assertion();
 const artifact = JSON.parse(readFileSync("wrangler.artifact.json", "utf8"));
 const fixture = {
   ...artifact,
@@ -123,6 +126,7 @@ const fixture = {
     DOUBLETAKE_ACCESS_ISSUER: operatorIssuer,
     DOUBLETAKE_ACCESS_AUD: "loopback-preview",
     DOUBLETAKE_OPERATOR_SUBJECTS: "loopback-operator",
+    DOUBLETAKE_OPERATOR_MACHINES: "loopback-preview.access",
     NEXT_PUBLIC_CONVEX_SITE_URL: `${origin}/backend/http`,
     SENTRY_DSN: "",
     NEXT_PUBLIC_SENTRY_DSN: "",
@@ -232,6 +236,61 @@ async function ok(kind, path, args) {
 }
 try {
   await start();
+  for (const [claims, status] of [
+    [{ sub: "", common_name: "loopback-preview.access" }, 200],
+    [{ sub: "", common_name: "unknown.access" }, 403],
+    [{ sub: "", common_name: "loopback-preview.access", type: "org" }, 403],
+    [
+      {
+        sub: "",
+        common_name: "loopback-preview.access",
+        aud: ["production-app"],
+      },
+      403,
+    ],
+    [
+      {
+        sub: "",
+        common_name: "loopback-preview.access",
+        nbf: Date.now() / 1000 + 600,
+      },
+      403,
+    ],
+    [{ sub: "", common_name: "loopback-preview.access", exp: 0 }, 403],
+    [
+      {
+        sub: "",
+        common_name: "loopback-preview.access",
+        iss: "https://unknown.test",
+      },
+      403,
+    ],
+    [{ sub: "" }, 403],
+    [{ sub: null, common_name: "loopback-preview.access" }, 403],
+    [{ sub: "unknown-human" }, 403],
+  ]) {
+    const response = await fetch(`${origin}/backend/admin/status`, {
+      headers: {
+        ...adminHeaders,
+        "Cf-Access-Jwt-Assertion": assertion(claims),
+      },
+    });
+    assert.equal(response.status, status);
+  }
+  assert.equal(
+    (
+      await fetch(`${origin}/backend/admin/status`, {
+        headers: {
+          ...adminHeaders,
+          "Cf-Access-Jwt-Assertion": `${operatorJwt.slice(0, -12)}invalid`,
+        },
+      })
+    ).status,
+    403,
+  );
+  passed(
+    "real-runtime signed machine/human allow, unknown/type/audience/time/signature denial",
+  );
   assert.equal((await admin("status")).writesFrozen, true);
   assert.equal((await fetch(`${origin}/backend/admin/status`)).status, 403);
   assert.equal(

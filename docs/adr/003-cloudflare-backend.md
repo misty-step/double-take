@@ -22,7 +22,10 @@ This first local slice leaves both public backend URLs on Convex. A newly
 created object starts frozen and its admin API is disabled without the named
 binding. No source change here authorizes a production deployment or a cutover.
 CI, immutable artifact promotion, release generation and code rollback continue
-to use the existing release owner's path; no parallel workflow was added.
+to use the existing release owner's path. The existing CI has one migration-
+branch-only preview job, with separate build-time URLs, fresh signing/continuity
+secrets, a preview-only admin key and its own DO namespace. It does not deploy
+the production Worker or change release policy.
 
 ## Executed local evidence
 
@@ -73,7 +76,7 @@ SHA-256 binds the actual tested artifact instead of claiming an exact-head CI.
   native-source rollback execution remain unproven. In particular the old
   deployed Convex code does not yet contain this new internal function; do not
   assume restoring equal user tables re-arms its jobs.
-- Independent designer review precedes production. Preserve reviewed artifact
+- Independent reviewer/Astra technical review precedes production. Preserve reviewed artifact
   identity; the dormant deployment adds a DO class, so a pre-class version is not
   assumed to be a compatible native rollback target.
 
@@ -97,15 +100,18 @@ product remains light despite the emulated dark preference, a pre-existing theme
 gap, not a passing dark-theme claim. The judge was an explicit loopback HTTP
 fixture, never paid Jev. No hosted-preview acceptance is claimed by these images.
 
-Operator routes require both a signed Access assertion (fixed issuer, audience,
-expiry, exact nonempty subject) and the backend bearer key. The same check runs
-at the origin, including provider routes. Under the literal standing empty-sub
-rule, Cloudflare service-token JWTs are denied: Cloudflare documents their `sub`
-as empty and their machine identity as signed `common_name`. The owner decision
-on that machine-identity distinction and the adopted token's production role
-remain explicit questions; do not silently weaken the rule or broaden its role.
-The existing preview token has been adopted by Kaylee. No further token creation
-or account-token writes are permitted. Hosted acceptance/cutover remain pending.
+Operator routes require both a signed Access application assertion and the
+backend bearer key. The same check runs at the origin, including provider
+routes. Kaylee's corrected ruling adopts Cloudflare's native machine contract:
+after signature/issuer/audience/expiry/not-before verification, `type=app` and an
+empty `sub` require an exact allowlisted signed `common_name` (Client ID).
+Humans require an exact approved nonempty subject and no machine claim. Unknown
+identities, org-session tokens, supplied identity headers and preview roles on
+production deny. Signed allow/deny cases execute in actual loopback workerd,
+not just mocked authorization tests. The adopted token is preview-only; no
+further token creation or account-token writes are permitted. Production needs
+its separately authorized operator identity/policy. Hosted acceptance/cutover
+remain pending; local checks are not substituted for those proofs.
 
 ## Single-writer recovery contract
 
