@@ -35,10 +35,7 @@ export class DoubleTakeBackend extends Backend {
 
   override async fetch(request: Request): Promise<Response> {
     const response = await super.fetch(request);
-    if (
-      new URL(request.url).pathname !== "/backend/http/health" ||
-      !response.ok
-    )
+    if (new URL(request.url).pathname !== "/backend/http/health")
       return response;
     const version = this.deploymentEnv.CF_VERSION_METADATA as
       { id?: string } | undefined;
@@ -49,7 +46,7 @@ export class DoubleTakeBackend extends Backend {
         workerVersion: version?.id,
         judgeConfigured: readJudgeConfig(process.env) !== null,
       },
-      { headers: { "Cache-Control": "no-store" } },
+      { status: response.status, headers: { "Cache-Control": "no-store" } },
     );
   }
 }

@@ -309,7 +309,11 @@ try {
     ).status,
     401,
   );
-  assert.equal((await fetch(`${origin}/backend/http/health`)).status, 503);
+  const coldHealth = await fetch(`${origin}/backend/http/health`);
+  assert.equal(coldHealth.status, 503);
+  const coldIdentity = await coldHealth.json();
+  assert.equal(coldIdentity.release, fixture.vars.APP_RELEASE);
+  assert.equal(coldIdentity.judgeConfigured, true);
   if (process.env.DOUBLETAKE_CUSTODY_MANIFEST) {
     const manifestPath = resolve(process.env.DOUBLETAKE_CUSTODY_MANIFEST);
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));

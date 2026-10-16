@@ -63,7 +63,8 @@ export async function proveHostedOutage({ api, version, origin }) {
     let health;
     for (let i = 0; i < 600; i++) {
       const response = await transport(`${origin}/backend/http/health`);
-      if (response.ok) health = await response.json();
+      if (response.status === 200 || response.status === 503)
+        health = await response.json();
       if (
         health?.judgeConfigured === configured &&
         (!configured || health.workerVersion === version)
@@ -100,8 +101,8 @@ export async function proveHostedOutage({ api, version, origin }) {
     );
     const routed = await transport(`${origin}/api/health`);
     console.info("Fault-route health", await routed.json());
-    await operator.freeze(false);
     const faultIdentity = await backendReady(false);
+    await operator.freeze(false);
     const host = await guest(),
       friend = await guest();
     const room = await call("mutation", "rooms:createRoom", {
@@ -154,13 +155,38 @@ export async function proveHostedOutage({ api, version, origin }) {
     );
     await restore();
     deployedFault = false;
+    const recoveredIdentity = await backendReady(true);
     assert.deepEqual((await operator.exportSnapshot()).stats, accepted.stats);
     await operator.freeze(false);
-    const recoveredIdentity = await backendReady(true);
+    // A rollout can outlast the game's last-player clock. Preserve the failed
+    // accepted line exactly and prove recovered judging in a fresh match.
+    await call("mutation", "rooms:closeRoom", {
+      roomId: room.roomId,
+      guestToken: host,
+    });
+    const recoveredRoom = await call("mutation", "rooms:createRoom", {
+      guestToken: host,
+      displayName: "Recovered Host",
+    });
+    assert.equal(
+      (
+        await call("mutation", "rooms:joinRoom", {
+          guestToken: friend,
+          code: recoveredRoom.code,
+          displayName: "Recovered Friend",
+        })
+      ).ok,
+      true,
+    );
+    const recoveredGame = await call("mutation", "game:start", {
+      roomId: recoveredRoom.roomId,
+      requestId: `recovered-${Date.now()}`,
+      guestToken: host,
+    });
     assert.equal(
       (
         await call("mutation", "game:submit", {
-          gameId,
+          gameId: recoveredGame,
           guestToken: host,
           text: "We can face this together.",
         })
@@ -168,19 +194,22 @@ export async function proveHostedOutage({ api, version, origin }) {
       true,
     );
     for (let i = 0; i < 120; i++) {
-      view = await call("query", "game:view", { gameId, guestToken: host });
+      view = await call("query", "game:view", {
+        gameId: recoveredGame,
+        guestToken: host,
+      });
       if (view.me.line?.status === "judged") break;
       await delay(500);
     }
     assert.equal(view.me.line?.status, "judged");
     await call("mutation", "rooms:closeRoom", {
-      roomId: room.roomId,
+      roomId: recoveredRoom.roomId,
       guestToken: host,
     });
     return {
       unavailableJudgeInventedNoScore: true,
       acceptedLineRetainedAcrossNativeRollback: true,
-      realJudgeRetryRecovered: true,
+      realJudgeRecoveredInFreshMatch: true,
       rateLimitRefunded: true,
       faultIdentity,
       recoveredIdentity,
