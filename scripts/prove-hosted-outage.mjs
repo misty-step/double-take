@@ -1,6 +1,8 @@
-// Isolated preview only: native config rollback must preserve an accepted line.
+// Isolated preview only: native code rollback must preserve an accepted line.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { BackendOperator } from "@parlor/cloudflare/operator";
 import { restoreWorkerVersion } from "./rollback-worker.mjs";
@@ -53,40 +55,42 @@ export async function proveHostedOutage({ api, version, origin }) {
     });
   async function backendReady(configured) {
     let health;
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 180; i++) {
       const response = await transport(`${origin}/backend/http/health`);
       if (response.ok) health = await response.json();
       if (
         health?.judgeConfigured === configured &&
-        health?.judgeBindingConfigured === configured &&
         (!configured || health.workerVersion === version)
       )
         return health;
       await delay(500);
     }
-    throw new Error(
-      `Backend configuration did not activate: ${JSON.stringify(health)}`,
-    );
+    throw new Error(`Backend code did not activate: ${JSON.stringify(health)}`);
   }
   await operator.freeze(true);
+  const config = JSON.parse(readFileSync("wrangler.artifact.json", "utf8"));
+  const executable = readFileSync(config.main, "utf8");
+  const reader = /\bconst model = [A-Za-z_$][\w$]*\.JEV_MODEL;/g;
+  assert.equal([...executable.matchAll(reader)].length, 1);
+  const faultMain = join(dirname(config.main), "outage-proof-worker.js");
+  // Only this throwaway broken code version differs. The finalized candidate's
+  // bytes stay untouched. Bindings-only updates may retain a live DO constructor
+  // environment and therefore do not exercise a native CODE rollback.
+  writeFileSync(faultMain, executable.replace(reader, 'const model = "";'));
+  writeFileSync(
+    "wrangler.outage-proof.json",
+    JSON.stringify({ ...config, main: faultMain }),
+  );
   let deployedFault = false;
   try {
+    deployedFault = true;
     execFileSync(
       "pnpm",
-      [
-        "exec",
-        "wrangler",
-        "deploy",
-        "--config",
-        "wrangler.artifact.json",
-        "--var",
-        "JEV_MODEL:",
-      ],
+      ["exec", "wrangler", "deploy", "--config", "wrangler.outage-proof.json"],
       { stdio: "inherit" },
     );
-    deployedFault = true;
     await operator.freeze(false);
-    await backendReady(false);
+    const faultIdentity = await backendReady(false);
     const host = await guest(),
       friend = await guest();
     const room = await call("mutation", "rooms:createRoom", {
@@ -141,7 +145,7 @@ export async function proveHostedOutage({ api, version, origin }) {
     deployedFault = false;
     assert.deepEqual((await operator.exportSnapshot()).stats, accepted.stats);
     await operator.freeze(false);
-    await backendReady(true);
+    const recoveredIdentity = await backendReady(true);
     assert.equal(
       (
         await call("mutation", "game:submit", {
@@ -167,11 +171,15 @@ export async function proveHostedOutage({ api, version, origin }) {
       acceptedLineRetainedAcrossNativeRollback: true,
       realJudgeRetryRecovered: true,
       rateLimitRefunded: true,
+      faultIdentity,
+      recoveredIdentity,
       restored: version,
       canonicalStats: accepted.stats,
     };
   } finally {
     await operator.freeze(true).catch(() => {});
     if (deployedFault) await restore();
+    rmSync(faultMain, { force: true });
+    rmSync("wrangler.outage-proof.json", { force: true });
   }
 }

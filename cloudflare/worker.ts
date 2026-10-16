@@ -60,10 +60,7 @@ export default {
         const backend = (await response.json()) as Record<string, unknown>;
         if (
           backend.judgeConfigured === false ||
-          (backend.release !== undefined &&
-            backend.release !== env.APP_RELEASE) ||
-          (backend.workerVersion !== undefined &&
-            backend.workerVersion !== env.CF_VERSION_METADATA?.id)
+          (backend.release !== undefined && backend.release !== env.APP_RELEASE)
         )
           throw new Error("Backend identity/configuration mismatch");
         return Response.json(

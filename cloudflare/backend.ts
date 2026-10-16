@@ -48,10 +48,6 @@ export class DoubleTakeBackend extends Backend {
         release: this.deploymentEnv.APP_RELEASE,
         workerVersion: version?.id,
         judgeConfigured: readJudgeConfig(process.env) !== null,
-        judgeBindingConfigured:
-          readJudgeConfig(
-            this.deploymentEnv as Record<string, string | undefined>,
-          ) !== null,
       },
       { headers: { "Cache-Control": "no-store" } },
     );
