@@ -47,17 +47,17 @@ SHA-256 binds the actual tested artifact instead of claiming an exact-head CI.
 
 ## Remaining work before cutover
 
-- Provision physically isolated preview resources and fresh preview-only secrets
-  under the scoped credential authorization. Public players remain public;
-  Access guards only operator/machine surfaces, as Kaylee decided. Add and prove
-  assertion verification/identity allowlists before enabling a hosted admin key;
-  the adapter's bearer key alone is not the required Access identity contract.
-- Hosted preview is still pending. The browser build can now select an isolated
-  config through the existing build script. Health accepts `/backend/http`, and
-  the Worker uses its DO binding for same-Worker health instead of self-fetching.
-- Finish the candidate module-map regression, browser journeys and inspected
-  screenshots, concurrency/reconnect/abuse/failure paths, cron/Sentry receipts,
-  deployed point-in-time recovery drill, exact-head CI and independent review.
+- The physically isolated preview is deployed with fresh preview-only secrets
+  and exact signed machine authorization. Real Jev desktop/mobile gameplay,
+  deployed PITR/undo, canonical re-import and backend code rollback have executed.
+  Its deployment receipt binds provider module hashes and restored DO identity;
+  the rollback drill keeps accepted records frozen/equal and then judges in a
+  fresh match, rather than pretending an expired game deadline can be retried.
+- Finish the complete hosted SPEC matrix and correlated cron/Sentry evidence,
+  exact-reviewed-head CI and independent review. Public players remain public;
+  Access guards only operator/machine surfaces. The adapter's bearer key alone
+  is not the required Access identity contract. Production identity provisioning,
+  final data reconciliation and live cutover remain separate unexecuted steps.
 - Use the standing encrypted custody rule, not another request for the same
   custody decision. Keep raw records on the approved private path only. Establish
   a bounded retention/recovery objective with the accepted-data recovery owner;
