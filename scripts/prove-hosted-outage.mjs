@@ -1,8 +1,14 @@
 // Isolated preview only: native code rollback must preserve an accepted line.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, rmSync } from "node:fs";
-import { dirname, join } from "node:path";
+import {
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  cpSync,
+  existsSync,
+} from "node:fs";
+import { dirname, basename, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { BackendOperator } from "@parlor/cloudflare/operator";
 import { restoreWorkerVersion } from "./rollback-worker.mjs";
@@ -55,7 +61,7 @@ export async function proveHostedOutage({ api, version, origin }) {
     });
   async function backendReady(configured) {
     let health;
-    for (let i = 0; i < 180; i++) {
+    for (let i = 0; i < 600; i++) {
       const response = await transport(`${origin}/backend/http/health`);
       if (response.ok) health = await response.json();
       if (
@@ -72,7 +78,10 @@ export async function proveHostedOutage({ api, version, origin }) {
   const executable = readFileSync(config.main, "utf8");
   const reader = /\bconst model = [A-Za-z_$][\w$]*\.JEV_MODEL;/g;
   assert.equal([...executable.matchAll(reader)].length, 1);
-  const faultMain = join(dirname(config.main), "outage-proof-worker.js");
+  const faultDirectory = ".outage-proof";
+  assert.equal(existsSync(faultDirectory), false);
+  cpSync(dirname(config.main), faultDirectory, { recursive: true });
+  const faultMain = join(faultDirectory, basename(config.main));
   // Only this throwaway broken code version differs. The finalized candidate's
   // bytes stay untouched. Bindings-only updates may retain a live DO constructor
   // environment and therefore do not exercise a native CODE rollback.
@@ -89,6 +98,8 @@ export async function proveHostedOutage({ api, version, origin }) {
       ["exec", "wrangler", "deploy", "--config", "wrangler.outage-proof.json"],
       { stdio: "inherit" },
     );
+    const routed = await transport(`${origin}/api/health`);
+    console.info("Fault-route health", await routed.json());
     await operator.freeze(false);
     const faultIdentity = await backendReady(false);
     const host = await guest(),
@@ -179,7 +190,7 @@ export async function proveHostedOutage({ api, version, origin }) {
   } finally {
     await operator.freeze(true).catch(() => {});
     if (deployedFault) await restore();
-    rmSync(faultMain, { force: true });
+    rmSync(faultDirectory, { recursive: true, force: true });
     rmSync("wrangler.outage-proof.json", { force: true });
   }
 }
