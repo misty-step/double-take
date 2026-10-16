@@ -18,6 +18,7 @@ import {
   resolvePlayer,
 } from "@parlor/convex";
 import { ConvexError, v } from "convex/values";
+import { backendSignal } from "../lib/backend-telemetry";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -583,6 +584,7 @@ export const judgeSubmission = internalAction({
     );
     const pair = pairByKey(line.pairKey);
     if (!config || !pair) {
+      await backendSignal("judge_unavailable", "error");
       await ctx.runMutation(internal.game.failJudgment, {
         submissionId: args.submissionId,
         createdAt: line.createdAt,
@@ -603,6 +605,7 @@ export const judgeSubmission = internalAction({
       });
     } catch (error) {
       if (!(error instanceof JudgeUnavailableError)) throw error;
+      await backendSignal("judge_unavailable", "error");
       await ctx.runMutation(internal.game.failJudgment, {
         submissionId: args.submissionId,
         createdAt: line.createdAt,

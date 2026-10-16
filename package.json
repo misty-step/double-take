@@ -12,16 +12,18 @@
     "reset": "node scripts/reset.mjs",
     "dev:web": "next dev --hostname 0.0.0.0 --port 3210",
     "typecheck": "next typegen && tsc --noEmit",
-    "lint": "oxlint --deny-warnings app components convex lib tests scripts instrumentation.ts instrumentation-client.ts sentry.server.config.ts sentry.edge.config.ts next.config.ts",
-    "format": "prettier --write \"{app,components,convex,lib,tests,scripts,docs,config}/**/*.{ts,tsx,mjs,md,json,css}\" \"*.{ts,json,yaml}\"",
-    "format:check": "prettier --check \"{app,components,convex,lib,tests,scripts,docs,config}/**/*.{ts,tsx,mjs,md,json,css}\" \"*.{ts,json,yaml}\"",
+    "lint": "oxlint --deny-warnings app components cloudflare convex lib tests scripts instrumentation.ts instrumentation-client.ts sentry.server.config.ts sentry.edge.config.ts next.config.ts",
+    "format": "prettier --write \"{app,components,cloudflare,convex,lib,tests,scripts,docs,config}/**/*.{ts,tsx,mjs,md,json,css}\" \"*.{ts,json,yaml}\"",
+    "format:check": "prettier --check \"{app,components,cloudflare,convex,lib,tests,scripts,docs,config}/**/*.{ts,tsx,mjs,md,json,css}\" \"*.{ts,json,yaml}\"",
     "test": "vitest run",
+    "test:backend": "vitest run --config vitest.cloudflare.config.ts",
     "test:parlor": "vitest run --config scripts/vitest.vendor.mjs",
     "judge:probe": "bun scripts/judge-probe.mjs",
-    "check": "pnpm build:parlor && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
+    "check": "pnpm build:parlor && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:backend"
   },
   "dependencies": {
     "@parlor/auth": "workspace:*",
+    "@parlor/cloudflare": "workspace:*",
     "@parlor/convex": "workspace:*",
     "@parlor/core": "workspace:*",
     "@parlor/react": "workspace:*",
