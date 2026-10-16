@@ -51,6 +51,14 @@ export async function proveBrowser(origin, output, options = {}) {
           pathname: new URL(request.url()).pathname,
         }),
       );
+      page.on("websocket", (socket) =>
+        requests.push({
+          name,
+          transport: "websocket",
+          origin: new URL(socket.url()).origin,
+          pathname: new URL(socket.url()).pathname,
+        }),
+      );
       await page.goto(origin, { waitUntil: "networkidle" });
       await page
         .getByRole("button", { name: "Start a game", exact: true })
@@ -186,6 +194,10 @@ export async function proveBrowser(origin, output, options = {}) {
     );
     assert.deepEqual(errors, []);
     assert.ok(requests.length > 0);
+    assert.ok(
+      requests.filter((request) => request.transport === "websocket").length >=
+        2,
+    );
     assert.deepEqual(
       requests.filter((request) =>
         /convex\.(?:cloud|site)/.test(request.origin),
