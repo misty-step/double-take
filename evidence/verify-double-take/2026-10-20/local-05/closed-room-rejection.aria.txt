@@ -1,0 +1,14 @@
+- alert
+- banner:
+  - button "Double Take home": Double Take
+  - button "How to play"
+- main:
+  - heading "Join a game" [level=1]
+  - text: Game code
+  - textbox "Game code" [invalid]: F7FT
+  - paragraph: Four characters, on the host’s screen.
+  - text: Your name
+  - textbox "Your name": Verify Guest
+  - alert: No game with that code. Check it and try again.
+  - button "Join"
+- status

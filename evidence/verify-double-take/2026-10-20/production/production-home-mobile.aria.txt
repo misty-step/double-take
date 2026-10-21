@@ -1,0 +1,16 @@
+- alert
+- banner:
+  - button "Double Take home": Double Take
+  - button "How to play"
+- main:
+  - heading "Double Take" [level=1]
+  - 'figure "Example: “I have waited years for this moment.” is Fits as A wedding vow and Perfect as A villain’s gloat."':
+    - paragraph: A wedding vow
+    - paragraph: A villain’s gloat
+  - paragraph: Two worlds, one line that fits both. A party game for 2 to 8 phones.
+  - button "Start a game"
+  - button "Join a game"
+  - navigation "About Double Take":
+    - link "Changelog":
+      - /url: /changelog
+- status
