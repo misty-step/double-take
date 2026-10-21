@@ -1,0 +1,13 @@
+$ vitest run
+
+ RUN  v5.0.0 /home/phaedrus/.cache/tmp/qa-double-take-1f05101
+
+
+ Test Files  14 passed (14)
+      Tests  81 passed (81)
+   Start at  20:01:26
+   Duration  3.62s (tests 46%, transform 46%, import 8%, worker 1%)
+
+  Transform  transforming modules took 3.66s · 46% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns

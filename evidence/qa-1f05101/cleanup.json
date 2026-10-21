@@ -1,0 +1,9 @@
+{
+  "allOwnedAppPortsClosed": true,
+  "convexStateRemoved": true,
+  "envLocalRemoved": true,
+  "ownedContainerRemoved": true,
+  "ownedQaSentinelStopped": true,
+  "ownedPreviewTabClosed": true,
+  "evidenceSurvivesAllCompletedRuns": true
+}

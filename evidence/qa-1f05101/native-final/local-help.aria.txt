@@ -1,0 +1,30 @@
+- alert
+- banner:
+  - button "Double Take home": Double Take
+  - button "How to play"
+- main:
+  - heading "Double Take" [level=1]
+  - 'figure "Example: “I have waited years for this moment.” is Fits as A wedding vow and Perfect as A villain’s gloat."':
+    - paragraph: A wedding vow
+    - paragraph: A villain’s gloat
+  - paragraph: Two worlds, one line that fits both. A party game for 2 to 8 phones.
+  - button "Start a game"
+  - button "Join a game"
+  - navigation "About Double Take":
+    - link "Changelog":
+      - /url: /changelog
+- dialog "How to play":
+  - heading "How to play" [level=2]
+  - button "Close"
+  - button "I will love you until death takes me.. Read as A wedding vow. Flip to A villain’s gloat.":
+    - paragraph: A wedding vow
+    - paragraph: I will love you until death takes me.
+  - paragraph: Same line, two worlds. Tap to flip.
+  - list:
+    - listitem: Everyone sees the same two worlds.
+    - listitem: Write one line you could say in both, twelve words at most.
+    - listitem: "Each world rates it: Wrong here, Awkward, Fits, or Perfect. Your points are the two ratings added up, six at best."
+    - listitem: If one world says no, or it is two lines stitched together, it scores nothing.
+    - listitem: Lines are revealed without names. Most points takes the round; three rounds make a game.
+  - button "Got it"
+- status

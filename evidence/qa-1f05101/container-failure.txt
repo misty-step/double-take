@@ -1,0 +1,5 @@
+Documented container wrapper run at candidate 1f05101ac51c729c2e442734c231f3225f7b5843.
+Round 1 and real last-player deadline passed. During round 2 the real rooms:heartbeat reported: Your request timed out performing too many system operations. Request identifier omitted.
+Runner failed waiting for Every line this round at verify.mjs:380, after two fixture HTTP calls.
+The container and generated state were removed; evidence survived.
+This may reflect local backend/resource contention; root cause is unconfirmed. It does not establish a production defect.

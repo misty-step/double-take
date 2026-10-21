@@ -1,0 +1,22 @@
+- alert
+- banner:
+  - button "Game menu": Double Take
+  - button "Menu"
+  - button "How to play"
+- main:
+  - paragraph: Final scores
+  - heading "You win" [level=1]
+  - paragraph: 18 points over 3 rounds.
+  - list:
+    - listitem: 1 You 18
+    - listitem: 2 Verify Guest 12
+  - region "Line of the game":
+    - heading "Line of the game" [level=2]
+    - button "This is verification round 1.. Read as Posh maitre d’. Flip to Crypt keeper warning.":
+      - paragraph: Posh maitre d’
+      - paragraph: This is verification round 1.
+      - text: Perfect
+    - paragraph: Verify Host, 6 points. Tap to see the other world.
+  - button "Play again"
+  - button "Back to lobby"
+- status

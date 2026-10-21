@@ -1,0 +1,5 @@
+{
+  "hostPort3220": "owned QA sentinel responding",
+  "containerDoctor": "PASS with separate real Convex backend on its own port 3220",
+  "hostPortPublished": false
+}

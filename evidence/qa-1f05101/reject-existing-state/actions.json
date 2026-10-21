@@ -1,0 +1,12 @@
+[
+  {
+    "at": "2026-10-21T01:00:29.647Z",
+    "action": "FAIL",
+    "result": "setup; AssertionError; inspect this step locally (raw errors withheld for privacy)"
+  },
+  {
+    "at": "2026-10-21T01:00:30.070Z",
+    "action": "cleanup",
+    "result": "Owned browser/server/fixture stopped; run-created local data and keys removed; evidence retained"
+  }
+]

@@ -1,0 +1,17 @@
+[
+  {
+    "at": "2026-10-21T01:05:14.193Z",
+    "action": "FAIL",
+    "result": "start anonymous local backend; Error; inspect this step locally (raw errors withheld for privacy)"
+  },
+  {
+    "at": "2026-10-21T01:05:14.193Z",
+    "action": "unmet precondition",
+    "result": "Port 3220 is already in use. Stop the process using it; Double Take will not take over another backend or web server."
+  },
+  {
+    "at": "2026-10-21T01:05:14.210Z",
+    "action": "cleanup",
+    "result": "Owned browser/server/fixture stopped; run-created local data and keys removed; evidence retained"
+  }
+]

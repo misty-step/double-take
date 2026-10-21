@@ -1,0 +1,5 @@
+Independent cold native run at candidate 1f05101ac51c729c2e442734c231f3225f7b5843.
+After all three round reveals and five fixture HTTP calls passed, clicking Play again caused real Convex game:start to throw ConvexError {"code":"NOT_ENOUGH_PRESENT_PLAYERS"}. Request identifiers omitted.
+Runner then failed: click Play again; TimeoutError at verify.mjs:423 after 45 seconds waiting for #write-h.
+Separate read-only doctor at 2026-10-21T01:01:58.478Z returned environment=test, release=local, backend=ok.
+The finally cleanup removed .convex and .env.local, freed all three app ports, and retained actions/screenshots/result.

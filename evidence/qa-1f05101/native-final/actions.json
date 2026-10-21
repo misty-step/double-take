@@ -1,0 +1,62 @@
+[
+  {
+    "at": "2026-10-21T01:06:14.587Z",
+    "action": "local doctor",
+    "result": "{\"status\":\"ok\",\"service\":\"double-take\",\"version\":\"0.2.0\",\"environment\":\"test\",\"release\":\"local\",\"checkedAt\":\"2026-10-21T01:06:14.546Z\",\"dependencies\":{\"backend\":\"ok\"}}"
+  },
+  {
+    "at": "2026-10-21T01:06:25.646Z",
+    "action": "guest continuity and create/join",
+    "result": "PASS; two isolated browser sessions see the same roster; reload restores seat; lone host cannot start"
+  },
+  {
+    "at": "2026-10-21T01:06:31.311Z",
+    "action": "writing validation and missing-judge failure",
+    "result": "PASS; empty/13-word lines disabled; no-key submission returns retry, never a fabricated score"
+  },
+  {
+    "at": "2026-10-21T01:06:31.408Z",
+    "action": "doctor after expected scoring failure",
+    "result": "{\"status\":\"ok\",\"service\":\"double-take\",\"version\":\"0.2.0\",\"environment\":\"test\",\"release\":\"local\",\"checkedAt\":\"2026-10-21T01:06:31.359Z\",\"dependencies\":{\"backend\":\"ok\"}}"
+  },
+  {
+    "at": "2026-10-21T01:07:06.585Z",
+    "action": "round 1 reveal with HTTP fixture",
+    "result": "PASS; idle guest hits real 30-second deadline; both clients reveal the same line (synthetic judge)"
+  },
+  {
+    "at": "2026-10-21T01:07:25.719Z",
+    "action": "round 2 reveal with HTTP fixture",
+    "result": "PASS; peer line hidden before reveal, both clients show identical lines and scores (synthetic judge)"
+  },
+  {
+    "at": "2026-10-21T01:07:43.233Z",
+    "action": "round 3 reveal with HTTP fixture",
+    "result": "PASS; peer line hidden before reveal, both clients show identical lines and scores (synthetic judge)"
+  },
+  {
+    "at": "2026-10-21T01:07:43.454Z",
+    "action": "three-round match",
+    "result": "PASS with synthetic judge; live Jev quality and paid-provider access UNPROVEN: needs explicit spending permission plus dedicated key"
+  },
+  {
+    "at": "2026-10-21T01:07:51.549Z",
+    "action": "room lifecycle",
+    "result": "PASS; replay, host-only end, leave, invite rejoin, host transfer, close, closed-code rejection"
+  },
+  {
+    "at": "2026-10-21T01:07:52.003Z",
+    "action": "invalid guest continuity recovery",
+    "result": "PASS; bad cookie displays recovery; Start fresh returns usable home"
+  },
+  {
+    "at": "2026-10-21T01:07:52.052Z",
+    "action": "backend unavailable",
+    "result": "PASS; real owned backend stopped, web health returns 503 unhealthy"
+  },
+  {
+    "at": "2026-10-21T01:07:52.355Z",
+    "action": "cleanup",
+    "result": "Owned browser/server/fixture stopped; run-created local data and keys removed; evidence retained"
+  }
+]

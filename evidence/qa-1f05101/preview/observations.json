@@ -1,0 +1,15 @@
+{
+  "surface": "https://doubletake.mistystep.io",
+  "tool": "T3 collaborative preview",
+  "profile": "incognito",
+  "viewport": { "width": 390, "height": 844 },
+  "guestEndpointStatus": 200,
+  "homeUsable": true,
+  "helpOpenedAndClosed": true,
+  "changelogAndReturnLink": true,
+  "horizontalOverflow": false,
+  "productionRoomCreated": false,
+  "modelRequestMade": false,
+  "telemetry": "Existing app Sentry POSTs observed; request bodies not captured",
+  "cleanup": "Owned preview tab closed"
+}

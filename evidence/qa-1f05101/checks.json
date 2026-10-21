@@ -1,0 +1,12 @@
+{
+  "candidate": "1f05101ac51c729c2e442734c231f3225f7b5843",
+  "helperSyntax": "PASS",
+  "shellSyntax": "PASS",
+  "helperOxlint": "PASS",
+  "skillAndHelperPrettier": "PASS",
+  "relativeLinks": "PASS",
+  "executableBits": "PASS",
+  "claudeRelativeSymlink": "PASS",
+  "productAndLockfileChanges": "none",
+  "tests": 81
+}

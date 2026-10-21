@@ -1,0 +1,16 @@
+- alert
+- banner:
+  - button "Game menu": Double Take
+  - button "Menu"
+  - button "How to play"
+- main:
+  - heading "Game code" [level=1]
+  - paragraph: 882V
+  - list "Players":
+    - listitem: You Host
+    - listitem: Verify Guest
+    - listitem: Room for 6 more
+  - paragraph: 2 players. Three rounds, about five minutes.
+  - button "Start the game"
+  - button "Invite friends"
+- status
