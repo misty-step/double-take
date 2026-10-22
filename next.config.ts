@@ -40,6 +40,11 @@ function localDevOrigins(): string[] {
 const nextConfig: NextConfig = {
   allowedDevOrigins: localMode ? localDevOrigins() : undefined,
   env: clientEnv,
+  experimental: {
+    // Turbopack minifies server chunks from Next.js 16.4, which rewrites
+    // Effect TypeId symbols into string coercions that throw in workerd.
+    serverMinification: false,
+  },
 };
 
 const hasUploadCredentials = Boolean(
