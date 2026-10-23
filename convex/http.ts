@@ -1,5 +1,6 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
+import { rearm } from "./recoveryHttp";
 
 const http = httpRouter();
 
@@ -13,5 +14,7 @@ http.route({
     ),
   ),
 });
+
+http.route({ path: "/migration/rearm", method: "POST", handler: rearm });
 
 export default http;
