@@ -4,6 +4,7 @@ import { PAIRS, pairByKey } from "../convex/deck";
 import {
   JudgeUnavailableError,
   readJudgeConfig,
+  requestDecision,
   runAdjudication,
 } from "../convex/judge";
 import { checkSentence, normalizeSentence } from "../convex/rules";
@@ -186,6 +187,71 @@ describe("runAdjudication", () => {
     await expect(
       runAdjudication(config, pair, "Some line", wrongType),
     ).rejects.toBeInstanceOf(JudgeUnavailableError);
+  });
+
+  it.each(
+    [null, [], 0, false, "text", {}, { answers: null }, { answers: [] }].map(
+      (body) => ({ body }),
+    ),
+  )("rejects a malformed decision envelope: $body", async ({ body }) => {
+    const fetchMock = vi.fn(async () => Response.json(body));
+    await expect(
+      requestDecision(
+        config,
+        { model: config.model, state: {}, questions: {} },
+        fetchMock,
+      ),
+    ).rejects.toMatchObject({
+      name: "JudgeUnavailableError",
+      code: "JUDGE_BAD_RESPONSE",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a response body transport failure, then scores the complete response", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(
+        async () =>
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode('{"answers":'));
+                controller.error(
+                  new TypeError("connection reset while reading"),
+                );
+              },
+            }),
+          ),
+      )
+      .mockImplementationOnce(async () =>
+        Response.json(response({ a: 2, b: 2, coherence: 3 })),
+      );
+    const draft = await runAdjudication(config, pair, "Some line", fetchMock);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(draft.composed.points).toBe(4);
+  });
+
+  it("fails closed after repeated response body transport failures", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(
+                new DOMException("The operation timed out", "TimeoutError"),
+              );
+            },
+          }),
+        ),
+    );
+    await expect(
+      runAdjudication(config, pair, "Some line", fetchMock),
+    ).rejects.toMatchObject({
+      name: "JudgeUnavailableError",
+      code: "JUDGE_NETWORK",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("fails closed on network errors", async () => {

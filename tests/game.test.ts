@@ -273,38 +273,75 @@ describe("double take group game", () => {
     expect(charges.map((row) => row.count).sort()).toEqual([0, 1]);
   });
 
-  it("unlocks a line Jev could not score, refunds it, and judges the retry", async () => {
-    const { t, clients, gameId, settle } = await fixture();
-    vi.stubGlobal(
-      "fetch",
-      // A refusal fails on the first attempt; overloads retry with backoff in judge.test.ts.
-      vi.fn(async () => new Response("refused", { status: 401 })),
-    );
-    await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "A line that works in both worlds",
-    });
-    await settle();
-    let view = await clients[0]!.query(api.game.view, { gameId });
-    expect(view.me.line).toEqual({
-      text: "A line that works in both worlds",
-      status: "failed",
-    });
-    expect(view.players[0]!.locked).toBe(false);
-    expect(await rateLimitCount(t)).toBe(0);
-    expect(
-      await t.run(async (ctx) => ctx.db.query("adjudications").collect()),
-    ).toHaveLength(0);
-    installJudge(() => FITS_BOTH);
-    const retry = await clients[0]!.mutation(api.game.submit, {
-      gameId,
-      text: "A line that works in both worlds",
-    });
-    expect(retry).toEqual({ ok: true });
-    await settle();
-    view = await clients[0]!.query(api.game.view, { gameId });
-    expect(view.me.line?.status).toBe("judged");
-  });
+  it.each(["refusal", "null response", "broken response body"])(
+    "unlocks, refunds, and retries a line after a judge %s",
+    async (failure) => {
+      const { t, clients, gameId, settle } = await fixture();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          if (failure === "null response") return Response.json(null);
+          if (failure === "broken response body")
+            return new Response(
+              new ReadableStream({
+                start(controller) {
+                  controller.error(
+                    new TypeError("connection reset while reading"),
+                  );
+                },
+              }),
+            );
+          return new Response("refused", { status: 401 });
+        }),
+      );
+      await clients[0]!.mutation(api.game.submit, {
+        gameId,
+        text: "A line that works in both worlds",
+      });
+      // Transport retries keep the line pending and hidden until they settle.
+      await vi.advanceTimersByTimeAsync(1);
+      if (failure === "broken response body") {
+        const pending = await clients[0]!.query(api.game.view, { gameId });
+        expect(pending.me.line?.status).toBe("pending");
+        expect(pending.phase).toBe("writing");
+        expect(pending.reveal).toBeNull();
+        expect(pending.players.map((player) => player.score)).toEqual([0, 0]);
+      }
+      // Let transport retries settle without advancing the last-player deadline.
+      await vi.advanceTimersByTimeAsync(1_200);
+      await settle();
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(
+        failure === "broken response body" ? 3 : 1,
+      );
+      let view = await clients[0]!.query(api.game.view, { gameId });
+      expect(view.me.line).toEqual({
+        text: "A line that works in both worlds",
+        status: "failed",
+      });
+      expect(view.players[0]!.locked).toBe(false);
+      expect(await rateLimitCount(t)).toBe(0);
+      expect(
+        await t.run(async (ctx) => ctx.db.query("adjudications").collect()),
+      ).toHaveLength(0);
+      installJudge(() => FITS_BOTH);
+      const retry = await clients[0]!.mutation(api.game.submit, {
+        gameId,
+        text: "A line that works in both worlds",
+      });
+      expect(retry).toEqual({ ok: true });
+      await settle();
+      view = await clients[0]!.query(api.game.view, { gameId });
+      expect(view.me.line?.status).toBe("judged");
+      await clients[1]!.mutation(api.game.submit, {
+        gameId,
+        text: "Another line for both worlds",
+      });
+      await settle();
+      view = await clients[0]!.query(api.game.view, { gameId });
+      expect(view.phase).toBe("reveal");
+      expect(view.players.map((player) => player.score)).toEqual([6, 6]);
+    },
+  );
 
   it("gives the last player a clock, then reveals without them", async () => {
     const { t, clients, host, gameId, settle } = await fixture(3);
