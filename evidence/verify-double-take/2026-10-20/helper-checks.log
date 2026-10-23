@@ -1,0 +1,7 @@
++ node --check .agents/skills/verify-double-take/scripts/verify.mjs
++ pnpm exec oxlint --deny-warnings .agents/skills/verify-double-take/scripts/verify.mjs
++ shellcheck .agents/skills/verify-double-take/scripts/container.sh
++ pnpm exec prettier --check .agents/skills/verify-double-take
+Checking formatting...
+All matched files use Prettier code style!
++ git diff --check

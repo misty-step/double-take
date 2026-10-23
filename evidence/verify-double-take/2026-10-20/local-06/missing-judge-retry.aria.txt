@@ -1,0 +1,20 @@
+- alert
+- banner:
+  - button "Game menu": Double Take
+  - button "Menu"
+  - button "How to play"
+- 'main "Round 1: Moving day hustle and Rocket launch scrub"':
+  - 'heading "Round 1: Moving day hustle and Rocket launch scrub" [level=1]'
+  - paragraph: Moving day hustle
+  - list "Who has locked in":
+    - listitem: You writing
+    - listitem: Verify Guest writing
+  - text: Your line, one sentence, twelve words at most
+  - textbox "Your line, one sentence, twelve words at most":
+    - /placeholder: Write one line for both.
+    - text: This is our verification line.
+  - alert: Your line didn’t go through. Lock it in again.
+  - paragraph: You’re the last one. 31 seconds.
+  - button "Lock it in"
+  - paragraph: Rocket launch scrub
+- status

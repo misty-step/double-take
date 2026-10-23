@@ -1,0 +1,20 @@
+- alert
+- banner:
+  - button "Game menu": Double Take
+  - button "Menu"
+  - button "How to play"
+- 'main "Round 1: An open house tour and An abandoned asylum trek"':
+  - 'heading "Round 1: An open house tour and An abandoned asylum trek" [level=1]'
+  - paragraph: An open house tour
+  - list "Who has locked in":
+    - listitem: You writing
+    - listitem: Verify Guest writing
+  - text: Your line, one sentence, twelve words at most
+  - textbox "Your line, one sentence, twelve words at most":
+    - /placeholder: Write one line for both.
+    - text: This is our verification line.
+  - alert: Your line didn’t go through. Lock it in again.
+  - paragraph: You’re the last one. 30 seconds.
+  - button "Lock it in"
+  - paragraph: An abandoned asylum trek
+- status

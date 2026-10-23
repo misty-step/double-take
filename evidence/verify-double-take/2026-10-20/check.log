@@ -1,0 +1,36 @@
+$ pnpm build:parlor && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test
+$ pnpm --filter './vendor/parlor/**' -r build
+Scope: 5 of 6 workspace projects
+vendor/parlor/packages/auth build$ tsc -p tsconfig.json
+vendor/parlor/packages/core build$ tsc -p tsconfig.json
+vendor/parlor/packages/web build$ tsc -p tsconfig.json
+vendor/parlor/packages/web build: Done
+vendor/parlor/packages/react build$ tsc -p tsconfig.json
+vendor/parlor/packages/core build: Done
+vendor/parlor/packages/auth build: Done
+vendor/parlor/integrations/convex build$ tsc -p tsconfig.json
+vendor/parlor/packages/react build: Done
+vendor/parlor/integrations/convex build: Done
+$ prettier --check "{app,components,convex,lib,tests,scripts,docs,config}/**/*.{ts,tsx,mjs,md,json,css}" "*.{ts,json,yaml}"
+Checking formatting...
+All matched files use Prettier code style!
+$ oxlint --deny-warnings app components convex lib tests scripts instrumentation.ts instrumentation-client.ts sentry.server.config.ts sentry.edge.config.ts next.config.ts
+$ next typegen && tsc --noEmit
+[@sentry/nextjs] Importing `withSentryConfig` from `@sentry/nextjs` is deprecated and will stop working in v11. Import it from `@sentry/nextjs/config` instead:
+  import { withSentryConfig } from '@sentry/nextjs/config';
+[@sentry/nextjs] DEPRECATION WARNING: disableLogger is deprecated and will be removed in a future version. Use webpack.treeshake.removeDebugLogging instead. (Not supported with Turbopack.)
+Generating route types...
+✓ Types generated successfully
+$ vitest run
+
+ RUN  v5.0.0 /home/phaedrus/.cache/tmp/verify-double-take
+
+
+ Test Files  14 passed (14)
+      Tests  81 passed (81)
+   Start at  19:43:10
+   Duration  3.21s (tests 56%, transform 32%, import 11%, worker 1%)
+
+  Transform  transforming modules took 2.04s · 32% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns

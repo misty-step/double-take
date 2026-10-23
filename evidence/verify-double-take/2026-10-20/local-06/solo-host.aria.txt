@@ -1,0 +1,15 @@
+- alert
+- banner:
+  - button "Game menu": Double Take
+  - button "Menu"
+  - button "How to play"
+- main:
+  - heading "Game code" [level=1]
+  - paragraph: EE4V
+  - list "Players":
+    - listitem: You Host
+    - listitem: Waiting for friends to join
+  - paragraph: 1 player. Three rounds, about five minutes.
+  - button "Invite friends"
+  - paragraph: You can start once someone joins.
+- status

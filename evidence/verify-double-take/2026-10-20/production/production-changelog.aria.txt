@@ -1,0 +1,30 @@
+- navigation "Double Take":
+  - link "Double Take":
+    - /url: /
+  - link "Back to the game":
+    - /url: /
+- main:
+  - paragraph: This build · 0.2.0
+  - heading "Changelog" [level=1]
+  - heading "0.2.0 (2026-10-15)" [level=2]:
+    - link "0.2.0":
+      - /url: https://github.com/misty-step/double-take/compare/v0.1.0...v0.2.0
+    - text: (2026-10-15)
+  - heading "Features" [level=3]
+  - list:
+    - listitem:
+      - text: read release notes from the game (
+      - link "9a03f82":
+        - /url: https://github.com/misty-step/double-take/commit/9a03f8208b1116c33962fa0148319083a03f8c89
+      - text: )
+  - heading "Bug Fixes" [level=3]
+  - list:
+    - listitem:
+      - text: use the native repository token for generated releases (
+      - link "887147b":
+        - /url: https://github.com/misty-step/double-take/commit/887147b619a8fcccf34cebb7ea4f17d7548c94be
+      - text: )
+  - heading "Changelog" [level=2]
+  - paragraph:
+    - link "Release notes on GitHub":
+      - /url: https://github.com/misty-step/double-take/releases
