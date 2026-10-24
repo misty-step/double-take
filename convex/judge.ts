@@ -147,6 +147,7 @@ export async function requestDecision(
   let lastMessage = "The judge did not answer. Nothing was scored.";
   for (let attempt = 1; attempt <= MAX_JUDGE_ATTEMPTS; attempt += 1) {
     let response: Response;
+    let text = "";
     try {
       response = await fetchImpl(config.url, {
         method: "POST",
@@ -157,6 +158,9 @@ export async function requestDecision(
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(JUDGE_TIMEOUT_MS),
       });
+      // Fetch resolves at the headers; timeouts and disconnects can still
+      // reject the body read. Keep those inside the same transport retry path.
+      if (response.ok) text = await response.text();
     } catch {
       lastCode = "JUDGE_NETWORK";
       lastMessage =
@@ -186,7 +190,6 @@ export async function requestDecision(
         `JUDGE_HTTP_${response.status}`,
         "The judge rejected the request. Nothing was scored.",
       );
-    const text = await response.text();
     if (text.length > MAX_RESPONSE_CHARS)
       throw new JudgeUnavailableError(
         "JUDGE_BAD_RESPONSE",
@@ -201,9 +204,18 @@ export async function requestDecision(
         "The judge response was unusable.",
       );
     }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      throw new JudgeUnavailableError(
+        "JUDGE_BAD_RESPONSE",
+        "The judge response was unusable.",
+      );
     const record = parsed as Record<string, unknown>;
     const answers = record.answers;
-    if (typeof answers !== "object" || answers === null)
+    if (
+      typeof answers !== "object" ||
+      answers === null ||
+      Array.isArray(answers)
+    )
       throw new JudgeUnavailableError(
         "JUDGE_BAD_RESPONSE",
         "The judge returned no answers.",
