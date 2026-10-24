@@ -80,7 +80,9 @@ async function fixture(
   });
   /** Run the judgments `submit` scheduled; the 30 s last-player clock is not due yet. */
   const settle = async () => {
-    vi.advanceTimersByTime(1);
+    // Actions run alongside the scheduler, not inside its transaction. Drain
+    // their asynchronous continuations before asserting or unstubbing env/fetch.
+    await vi.advanceTimersByTimeAsync(1);
     await t.finishInProgressScheduledFunctions();
   };
   const endReveal = async (extraMs = 0) => {

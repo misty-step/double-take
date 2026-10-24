@@ -16,12 +16,12 @@ function backendHealthUrl(env: Record<string, string | undefined>): URL {
   if (
     url.username ||
     url.password ||
-    url.pathname !== "/" ||
+    (url.pathname !== "/" && url.pathname !== "/backend/http") ||
     url.search ||
     url.hash
   ) {
     throw new Error(
-      "NEXT_PUBLIC_CONVEX_SITE_URL must be an origin without credentials",
+      "NEXT_PUBLIC_CONVEX_SITE_URL must be an origin or /backend/http without credentials",
     );
   }
   const localHttp =
@@ -33,7 +33,8 @@ function backendHealthUrl(env: Record<string, string | undefined>): URL {
   if (url.protocol !== "https:" && !localHttp) {
     throw new Error("Backend health requires HTTPS outside local development");
   }
-  return new URL("/health", url);
+  url.pathname = `${url.pathname.replace(/\/$/, "")}/health`;
+  return url;
 }
 
 export function createHealthHandler(
