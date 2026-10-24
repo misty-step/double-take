@@ -1,0 +1,17 @@
+[
+  {
+    "at": "2026-10-21T00:44:07.153Z",
+    "action": "production doctor",
+    "result": "{\"status\":\"ok\",\"service\":\"double-take\",\"version\":\"0.2.0\",\"environment\":\"production\",\"release\":\"8085f06e29cf8bfb9a1ce9f4e4ec0f89cb6718c5\",\"checkedAt\":\"2026-10-21T00:44:06.964Z\",\"dependencies\":{\"backend\":\"ok\"}}"
+  },
+  {
+    "at": "2026-10-21T00:44:09.873Z",
+    "action": "production landing, guest issuance, help, changelog",
+    "result": "PASS; no room created; no model request; owner login n/a (accountless)"
+  },
+  {
+    "at": "2026-10-21T00:44:09.902Z",
+    "action": "cleanup",
+    "result": "Owned browser/server/fixture stopped; run-created local data and keys removed; evidence retained"
+  }
+]

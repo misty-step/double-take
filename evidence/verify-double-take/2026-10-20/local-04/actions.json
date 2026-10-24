@@ -1,0 +1,12 @@
+[
+  {
+    "at": "2026-10-21T00:49:09.894Z",
+    "action": "FAIL",
+    "result": "build Parlor; Error; inspect this step locally (raw errors withheld for privacy)"
+  },
+  {
+    "at": "2026-10-21T00:49:10.164Z",
+    "action": "cleanup",
+    "result": "Owned browser/server/fixture stopped; run-created local data and keys removed; evidence retained"
+  }
+]

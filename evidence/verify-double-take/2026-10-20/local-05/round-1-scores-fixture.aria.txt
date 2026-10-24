@@ -1,0 +1,29 @@
+- alert
+- banner:
+  - button "Game menu": Double Take
+  - button "Menu"
+  - button "How to play"
+- main:
+  - paragraph: Round 1 of 3
+  - heading "You take the round" [level=1]
+  - figure "Tap to see the other world.":
+    - button "This is verification round 1.. Read as An open house tour. Flip to An abandoned asylum trek.":
+      - paragraph: An open house tour
+      - paragraph: This is verification round 1.
+      - text: Perfect
+    - text: Tap to see the other world.
+  - list "Every line this round":
+    - listitem:
+      - text: "6"
+      - paragraph: This is verification round 1.
+      - paragraph: "You An open house tour: Perfect An abandoned asylum trek: Perfect"
+    - listitem:
+      - text: "0"
+      - paragraph: Verify Guest No line this round
+  - region "Scores":
+    - heading "Scores" [level=2]
+    - list:
+      - listitem: 1 You +6 6
+      - listitem: 2 Verify Guest 0
+  - button "Next round"
+- status

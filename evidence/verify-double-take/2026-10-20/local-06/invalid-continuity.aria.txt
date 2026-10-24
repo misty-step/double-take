@@ -1,0 +1,9 @@
+- alert
+- banner:
+  - button "Double Take home": Double Take
+  - button "How to play"
+- main:
+  - heading "We couldn’t restore your seat" [level=1]
+  - paragraph: Check your connection and reload the page. Or start fresh with a new seat; your old game and points stay behind.
+  - button "Start fresh"
+- status

@@ -1,0 +1,57 @@
+[
+  {
+    "at": "2026-10-21T00:50:27.034Z",
+    "action": "local doctor",
+    "result": "{\"status\":\"ok\",\"service\":\"double-take\",\"version\":\"0.2.0\",\"environment\":\"test\",\"release\":\"local\",\"checkedAt\":\"2026-10-21T00:50:27.008Z\",\"dependencies\":{\"backend\":\"ok\"}}"
+  },
+  {
+    "at": "2026-10-21T00:50:36.723Z",
+    "action": "guest continuity and create/join",
+    "result": "PASS; two isolated browser sessions see the same roster; reload restores seat; lone host cannot start"
+  },
+  {
+    "at": "2026-10-21T00:50:38.872Z",
+    "action": "writing validation and missing-judge failure",
+    "result": "PASS; empty/13-word lines disabled; no-key submission returns retry, never a fabricated score"
+  },
+  {
+    "at": "2026-10-21T00:50:38.892Z",
+    "action": "doctor after expected scoring failure",
+    "result": "{\"status\":\"ok\",\"service\":\"double-take\",\"version\":\"0.2.0\",\"environment\":\"test\",\"release\":\"local\",\"checkedAt\":\"2026-10-21T00:50:38.880Z\",\"dependencies\":{\"backend\":\"ok\"}}"
+  },
+  {
+    "at": "2026-10-21T00:51:14.464Z",
+    "action": "round 1 reveal with HTTP fixture",
+    "result": "PASS; idle guest hits real 30-second deadline; both clients reveal the same line (synthetic judge)"
+  },
+  {
+    "at": "2026-10-21T00:51:27.004Z",
+    "action": "round 2 reveal with HTTP fixture",
+    "result": "PASS; peer line hidden before reveal, both clients show identical lines and scores (synthetic judge)"
+  },
+  {
+    "at": "2026-10-21T00:51:45.107Z",
+    "action": "round 3 reveal with HTTP fixture",
+    "result": "PASS; peer line hidden before reveal, both clients show identical lines and scores (synthetic judge)"
+  },
+  {
+    "at": "2026-10-21T00:51:45.354Z",
+    "action": "three-round match",
+    "result": "PASS with synthetic judge; live Jev quality and paid-provider access UNPROVEN: needs explicit spending permission plus dedicated key"
+  },
+  {
+    "at": "2026-10-21T00:51:48.503Z",
+    "action": "room lifecycle",
+    "result": "PASS; replay, host-only end, leave, invite rejoin, host transfer, close, closed-code rejection"
+  },
+  {
+    "at": "2026-10-21T00:52:33.593Z",
+    "action": "FAIL",
+    "result": "room lifecycle; TimeoutError; inspect this step locally (raw errors withheld for privacy)"
+  },
+  {
+    "at": "2026-10-21T00:52:33.834Z",
+    "action": "cleanup",
+    "result": "Owned browser/server/fixture stopped; run-created local data and keys removed; evidence retained"
+  }
+]
