@@ -14,13 +14,15 @@ permissions:
 jobs:
   release:
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hetzner-ci, double-take-ci]
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Install GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y gh
       - name: Refuse a missing baseline or superseded verified source
         env:
           GH_TOKEN: ${{ github.token }}
