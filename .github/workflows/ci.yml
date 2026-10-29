@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hetzner-ci, double-take-ci]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,7 +51,7 @@ jobs:
   preview-rollback:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     needs: check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hetzner-ci, double-take-ci]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -85,7 +85,7 @@ jobs:
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hetzner-ci, double-take-ci]
     concurrency:
       group: double-take-production
       cancel-in-progress: false
@@ -124,7 +124,7 @@ jobs:
   report-failure:
     if: failure() && github.event_name == 'push'
     needs: [check, deploy]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hetzner-ci, double-take-ci]
     steps:
       - uses: actions/checkout@v4
         with:
