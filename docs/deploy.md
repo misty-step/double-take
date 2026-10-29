@@ -48,7 +48,7 @@ Server env on the deployment (names only; existing settings provisioned by
 t_a342c750; the dedicated Jev key must be installed before this code deploy):
 
 - `JEV_OPENROUTER_API_KEY` — dedicated Jev-only key, `pass` label
-  `workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY`. No
+  `workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_PRODUCTION_JEV_API_KEY`. No
   `OPENROUTER_API_KEY` fallback; leave any existing mixed-use key and issuer
   caps untouched.
 - `JEV_MODEL=typesafe/jev-1.13`
@@ -63,7 +63,7 @@ deployment (not the Worker) without printing its value:
 ```sh
 pass-env run \
   -e CONVEX_DEPLOY_KEY=workstation/DOUBLETAKE_CONVEX_DEPLOY_KEY \
-  -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- \
+  -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_PRODUCTION_JEV_API_KEY -- \
   sh -c 'printf %s "$JEV_OPENROUTER_API_KEY" | pnpm exec convex env set --force JEV_OPENROUTER_API_KEY'
 ```
 

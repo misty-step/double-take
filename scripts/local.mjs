@@ -565,7 +565,7 @@ export async function configureBackend(processes, local, backend) {
   console.log(
     judge
       ? `Jev is configured for this local backend (${judge.JEV_MODEL}).`
-      : "Jev keeps whatever key this local backend already has. To set or replace it: pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- pnpm dev",
+      : "Jev keeps whatever key this local backend already has. To set or replace it: pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_PRODUCTION_JEV_API_KEY -- pnpm dev",
   );
   if (backend.job) {
     const deadline = Date.now() + 120_000;

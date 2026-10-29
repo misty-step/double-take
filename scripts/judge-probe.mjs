@@ -10,7 +10,7 @@
  *
  *   JEV_DECISIONS_URL=https://openrouter.ai/api/alpha/decisions \
  *   JEV_MODEL=typesafe/jev-1.13 \
- *   pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- \
+ *   pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_PRODUCTION_JEV_API_KEY -- \
  *   pnpm judge:probe
  *
  * Set PROBE_REPEATS=N (default 1) to judge each entry N times and observe
