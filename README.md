@@ -32,7 +32,7 @@ design record and spec in `design/reimagine/`.
 
 ```sh
 pnpm install
-pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- pnpm bootstrap
+pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_PRODUCTION_JEV_API_KEY -- pnpm bootstrap
 pnpm dev         # web on http://localhost:3210, backend on 3220/3221
 ```
 
@@ -77,7 +77,7 @@ Add more with:
 
 ```sh
 pass-env run -e OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_SHARED_JUDGMENT_API_KEY \
-  -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- \
+  -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_PRODUCTION_JEV_API_KEY -- \
   env JEV_MODEL=typesafe/jev-1.13 JEV_DECISIONS_URL=https://openrouter.ai/api/alpha/decisions \
   bun scripts/pairs/generate.ts --batches 10 --max-usd 0.1
 ```

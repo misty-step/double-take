@@ -2,7 +2,7 @@
  * Calibrate the pair battery: authored pairs should pass, planted failures
  * should fail for the reason they were planted.
  *
- *   pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_JEV_API_KEY -- \
+ *   pass-env run -e JEV_OPENROUTER_API_KEY=workstation/OPENROUTER_MISTY_STEP_DOUBLE_TAKE_PRODUCTION_JEV_API_KEY -- \
  *     env JEV_MODEL=typesafe/jev-1.13 JEV_DECISIONS_URL=https://openrouter.ai/api/alpha/decisions \
  *     bun scripts/pairs/calibrate.ts
  */
